@@ -128,8 +128,11 @@ class SecurityValidator:
         entry = plan.entry
         if entry is None:
             raise SecurityError(UNSAFE_REQUEST, "Plan has no registry entry.")
-        # Provenance check: the entry must come from THIS registry.
-        if self._registry.by_id(entry.id) is None:
+        # Provenance check: the entry must be EXACTLY an entry of THIS registry.
+        # Comparing full identity (not just a known id) rejects forged entries
+        # that reuse a registry id with a different executable/path/URL.
+        registered = self._registry.by_id(entry.id)
+        if registered is None or registered != entry:
             raise SecurityError(
                 UNSAFE_REQUEST,
                 f"Target '{entry.id}' is not part of the validated registry.",

@@ -264,6 +264,16 @@ class Assistant:
             action_result = self.executor.execute(plan)
             duration_ms = int((time.perf_counter() - started) * 1000)
         except ExecutorUnavailable as exc:
+            # The action could not run (e.g. an OS-gated action on a
+            # non-Windows machine). Record the outcome so that every accepted
+            # request also has an action result in the audit trail.
+            try:
+                self.audit.log_action_result(
+                    request_id, plan.intent, False, str(exc),
+                    self.executor.mode, None,
+                )
+            except AuditError:
+                logger.exception("Could not write action result audit record")
             return AssistantResult(
                 status=STATUS_ERROR,
                 message=str(exc),

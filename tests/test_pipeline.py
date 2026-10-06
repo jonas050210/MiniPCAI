@@ -184,6 +184,28 @@ class TestAuditTrail:
         assert result.reason == "audit_unavailable"
         assert assistant.executor.plans == []
 
+    def test_executor_unavailable_is_audited(self, make_assistant):
+        from minipcai.actions import ExecutorUnavailable
+
+        class UnavailableExecutor:
+            mode = "test-unavailable"
+
+            def execute(self, plan):
+                raise ExecutorUnavailable("action not available here")
+
+        assistant = make_assistant()
+        assistant.executor = UnavailableExecutor()
+        result = assistant.handle("öffne notepad")
+        assert result.status == "error"
+        assert result.reason == "executor_unavailable"
+        # The audit trail must contain BOTH records: acceptance and outcome.
+        events = read_audit_events(assistant.audit.path)
+        assert [event["event"] for event in events] == [
+            "request_accepted", "action_result",
+        ]
+        assert events[1]["ok"] is False
+        assert "not available" in events[1]["summary"]
+
 
 class TestWindowsExecutorMode:
     def test_os_action_requires_windows(self, make_assistant):

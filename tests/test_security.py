@@ -59,8 +59,27 @@ class TestRegistryProvenance:
         with pytest.raises(SecurityError, match="not part of the validated registry"):
             validator.validate_plan(ActionPlan(intent="open_app", entry=foreign))
 
+    def test_forged_entry_reusing_existing_id_rejected(self, validator):
+        # A forged entry that reuses a known registry id but points to a
+        # different executable must not pass the provenance check.
+        real = validator.registry.by_id("notepad")
+        forged = RegistryEntry(
+            section=real.section, id=real.id, aliases=real.aliases,
+            target="C:\\Windows\\evil.exe",
+        )
+        with pytest.raises(SecurityError, match="not part of the validated registry"):
+            validator.validate_plan(ActionPlan(intent="open_app", entry=forged))
+
+    def test_identical_copy_of_registry_entry_passes(self, validator):
+        real = validator.registry.by_id("notepad")
+        copy = RegistryEntry(
+            section=real.section, id=real.id, aliases=real.aliases, target=real.target
+        )
+        validator.validate_plan(ActionPlan(intent="open_app", entry=copy))
+
     def test_wrong_section_rejected(self, validator):
-        website = _entry("websites", "wikipedia", "https://www.wikipedia.org")
+        # A genuine registry entry used with an intent of a different kind.
+        website = validator.registry.by_id("wikipedia")
         with pytest.raises(SecurityError, match="does not match intent"):
             validator.validate_plan(ActionPlan(intent="open_app", entry=website))
 
