@@ -75,6 +75,61 @@ class TestRegistryCommand:
         assert "Invalid registry" in capsys.readouterr().err
 
 
+class TestAuditCommand:
+    def _run_ask(self, registry_path, model_path, audit_path, text):
+        return main(["ask", text, *_common(registry_path, model_path, audit_path)])
+
+    def test_empty_log(self, capsys, tmp_path):
+        audit_path = tmp_path / "missing.jsonl"
+        code = main(["audit", "--audit", str(audit_path)])
+        assert code == 0
+        assert "No audit log yet" in capsys.readouterr().out
+
+    def test_shows_recent_records(self, capsys, trained_model, registry_factory,
+                                  tmp_path):
+        audit_path = tmp_path / "audit.jsonl"
+        registry_path = registry_factory()
+        self._run_ask(registry_path, trained_model, audit_path, "öffne notepad")
+        self._run_ask(registry_path, trained_model, audit_path,
+                      "wie wird das wetter morgen")
+        capsys.readouterr()  # drop the ask output
+        code = main(["audit", "--audit", str(audit_path)])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "accepted" in out and "open_app" in out
+        assert "rejected" in out and "unknown_request" in out
+        assert "action ok" in out
+
+    def test_limit_and_json(self, capsys, trained_model, registry_factory, tmp_path):
+        audit_path = tmp_path / "audit.jsonl"
+        registry_path = registry_factory()
+        self._run_ask(registry_path, trained_model, audit_path, "öffne notepad")
+        capsys.readouterr()
+        code = main(["audit", "--audit", str(audit_path), "--limit", "1", "--json"])
+        assert code == 0
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["event"] == "action_result"
+
+    def test_corrupt_lines_are_skipped(self, capsys, tmp_path):
+        audit_path = tmp_path / "audit.jsonl"
+        audit_path.write_text("not json\n", encoding="utf-8")
+        code = main(["audit", "--audit", str(audit_path)])
+        assert code == 0
+        captured = capsys.readouterr()
+        assert "no readable records" in captured.out
+        assert "unreadable" in captured.err
+
+    def test_audit_command_does_not_modify_the_log(self, trained_model,
+                                                   registry_factory, tmp_path):
+        audit_path = tmp_path / "audit.jsonl"
+        self._run_ask(registry_factory(), trained_model, audit_path, "öffne notepad")
+        before = audit_path.read_bytes()
+        main(["audit", "--audit", str(audit_path)])
+        assert audit_path.read_bytes() == before
+
+
 class TestVersion:
     def test_version_flag(self, capsys):
         with pytest.raises(SystemExit) as excinfo:

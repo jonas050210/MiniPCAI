@@ -6,6 +6,7 @@ Subcommands:
 * ``chat``     - interactive text chat (REPL)
 * ``train``    - train the intent model (alias of ``minipcai-train``)
 * ``registry`` - validate and list the registry
+* ``audit``    - show the most recent audit log entries (read-only)
 * ``ui``       - launch the PySide6 desktop UI
 * ``version``  - print version information
 """
@@ -61,9 +62,9 @@ def _cmd_ask(args: argparse.Namespace) -> int:
     else:
         prefix = {"ok": "[ok]", "rejected": "[rejected]", "error": "[error]"}[result.status]
         print(f"{prefix} {result.message}")
-        if result.intent:
+        if result.intent and result.confidence is not None:
             print(f"      intent: {result.intent} (confidence {result.confidence:.0%}, "
-                  f"reason: {result.reason or 'none'})")
+                  f"reason: {result.reason or 'none'}")
     return 0 if result.status == "ok" else 1
 
 
@@ -113,6 +114,70 @@ def _cmd_registry(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_audit(args: argparse.Namespace) -> int:
+    """Print the most recent audit records (read-only, never modifies the log)."""
+    path = Path(args.audit)
+    if not path.is_file():
+        print(f"No audit log yet at {path}.")
+        return 0
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        print(f"Error: cannot read audit log {path}: {exc}", file=sys.stderr)
+        return 2
+    records: list[dict] = []
+    skipped = 0
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            skipped += 1
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    if not records:
+        print(f"Audit log at {path} contains no readable records.")
+        if skipped:
+            print(f"({skipped} unreadable line(s) skipped)", file=sys.stderr)
+        return 0
+    for record in records[-args.limit:]:
+        if args.json:
+            print(json.dumps(record, ensure_ascii=False))
+        else:
+            print(_format_audit_record(record))
+    if skipped:
+        print(f"({skipped} unreadable line(s) skipped)", file=sys.stderr)
+    return 0
+
+
+def _format_audit_record(record: dict) -> str:
+    event = record.get("event", "?")
+    ts = str(record.get("ts", ""))[:19].replace("T", " ")
+    request_id = record.get("request_id", "-")
+    if event == "request_accepted":
+        return (
+            f"{ts}  {request_id}  accepted  {record.get('intent')} "
+            f"(target: {record.get('target_kind')}/{record.get('target_id')}, "
+            f"executor: {record.get('executor_mode')})"
+        )
+    if event == "request_result":
+        return (
+            f"{ts}  {request_id}  rejected  {record.get('reason')} "
+            f"intent={record.get('intent')}"
+        )
+    if event == "action_result":
+        status = "ok" if record.get("ok") else "failed"
+        return (
+            f"{ts}  {request_id}  action {status} ({record.get('executor_mode')}, "
+            f"{record.get('duration_ms')} ms): {record.get('summary')}"
+        )
+    if event == "timer_elapsed":
+        return f"{ts}  {request_id}  timer elapsed ({record.get('duration_seconds')} s)"
+    return f"{ts}  {request_id}  {event}"
+
+
 def _cmd_ui(args: argparse.Namespace) -> int:
     from minipcai.ui import run_ui
 
@@ -151,6 +216,15 @@ def build_parser() -> argparse.ArgumentParser:
     registry = subparsers.add_parser("registry", help="validate and list the registry")
     registry.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
     registry.set_defaults(func=_cmd_registry)
+
+    audit = subparsers.add_parser("audit", help="show recent audit log entries")
+    audit.add_argument("--audit", type=Path, default=DEFAULT_AUDIT_PATH,
+                       help="path to the audit log")
+    audit.add_argument("--limit", type=int, default=20,
+                       help="how many recent records to show (default: 20)")
+    audit.add_argument("--json", action="store_true",
+                       help="print raw JSON records instead of formatted lines")
+    audit.set_defaults(func=_cmd_audit)
 
     ui = subparsers.add_parser("ui", help="launch the PySide6 desktop UI")
     _add_common_arguments(ui)

@@ -58,11 +58,13 @@ Everything the assistant replies is in **English**; it **understands** German.
    absolute paths only (no `..`), `http(s)` URLs only, `searchable` only on folders.
 3. **No arbitrary execution**: no `CMD`, no `PowerShell`, no `shell=True`, no
    `os.system`, no `eval`/`exec`, no string commands. Applications are launched with
-   `subprocess.Popen([exe], shell=False)`; files/folders via `os.startfile`;
-   URLs via `webbrowser`. A test statically scans the source for forbidden patterns.
-4. **Blocked executables**: shells and script hosts (`cmd.exe`, `powershell.exe`,
-   `wscript.exe`, ...) are rejected by the security validator even if someone adds
-   them to the registry by accident.
+   `subprocess.Popen([exe], shell=False, cwd=<app folder>)`; files/folders via
+   `os.startfile`; URLs via `webbrowser`. A test statically scans the source for
+   forbidden patterns.
+4. **Blocked executables**: shells, script hosts, registry tooling and known
+   LOLBins (`cmd.exe`, `powershell.exe`, `wscript.exe`, `msdt.exe`, `fodhelper.exe`,
+   `rundll32.exe`, `wsl.exe`, ...) are rejected by the security validator even if
+   someone adds them to the registry by accident.
 5. **Process termination by full path match only**: `close_app` only terminates
    processes whose executable path is exactly the registered one.
 6. **Fail-closed auditing**: an accepted request is written to the append-only audit
@@ -105,26 +107,43 @@ minipcai ask "öffne notepad" --executor windows
 
 # Housekeeping
 minipcai registry              # validate and list the registry
+minipcai audit                 # show the most recent audit log entries
+minipcai audit --limit 50 --json
 minipcai --version
 ```
 
 In the UI you can switch between the dry-run and the Windows executor via the
-*Executor* menu. Timer results appear in the chat when the timer elapses.
+*Executor* menu (on a non-Windows machine the switch explains that OS actions will
+be unavailable), clear the chat with *Chat → Clear chat* (Ctrl+L), and see the audit
+log location in the status bar. Timer results appear in the chat when the timer
+elapses; if the audit log is not writable, the UI says so at startup because accepted
+requests are then refused.
 
 ## Training, evaluation and artifacts
 
-* Dataset: `data/intent_dataset.v1.jsonl` — 841 versioned German examples in four
+* Dataset: `data/intent_dataset.v2.jsonl` — 1470 versioned German examples in four
   categories: `normal`, `typo`, `unknown` (unsupported/out-of-domain) and `ambiguous`
-  (must trigger a clarification, trained towards the `unknown` label).
-  The dataset is reproducible: `python scripts/generate_dataset.py` (deterministic seed).
+  (must trigger a clarification, trained towards the `unknown` label). The dataset is
+  reproducible: `python scripts/generate_dataset.py` (deterministic seed). The version
+  is part of the file name; `minipcai` automatically uses the highest
+  `intent_dataset.v*.jsonl` it finds in `data/`, so publishing a new dataset version
+  needs no code change.
 * Model: TF-IDF word (1–2 grams) + character (2–4 grams) features with multinomial
-  `LogisticRegression` — trains in a few seconds on CPU.
+  `LogisticRegression` (`C=10`) — trains in a few seconds on CPU. Both vectorizers
+  share the `normalize_for_model` preprocessor, so casing/punctuation variants map to
+  the same features while arithmetic operators survive for calculator requests.
 * Thresholds (`min_confidence`, `min_margin`) are calibrated on the validation split
   under safety constraints (no wrongly accepted request, at most one unknown accept).
+* Current results (seed 42, 70/15/15 split): validation accuracy 0.941 /
+  macro-F1 0.951, test accuracy 0.923 / macro-F1 0.940. The safety-relevant number is
+  `accepted_wrong_in_scope`: **0** — no request with a valid label was accepted with
+  the wrong intent on either split. The few out-of-scope requests that pass the gates
+  are either refused during target resolution or answered with read-only information.
 * Committed artifacts: `models/metadata.json` (model, dataset hash, thresholds,
-  environment) and `models/metrics.json` (accuracy, macro-F1, per-class P/R/F1,
-  confusion matrix, per-category gate decisions). The binary `model.joblib` is not
-  committed — run `minipcai-train` after cloning.
+  environment, safety summary) and `models/metrics.json` (accuracy, macro-F1,
+  per-class P/R/F1, confusion matrix, per-category gate decisions, safety summary).
+  The binary `model.joblib` is not committed — run `minipcai-train` after cloning.
+  It is a pickle produced by joblib: only load model artifacts you trained yourself.
 
 ## The registry (`data/registry.json`)
 
@@ -163,8 +182,8 @@ minipcai/
   actions.py              DryRunExecutor + WindowsExecutor
   audit.py                append-only JSONL audit log
   pipeline.py             the Assistant orchestration
-  train.py                training, calibration, evaluation
-  cli.py                  ask / chat / train / registry / ui
+  train.py                training, calibration, evaluation (incl. safety summary)
+  cli.py                  ask / chat / train / registry / audit / ui
   ui/app.py               PySide6 chat window
 scripts/generate_dataset.py   reproducible dataset generator
 tests/                    pytest suite (incl. unsafe-input and source-scan tests)
@@ -191,12 +210,19 @@ minipcai-train         # retrain after dataset changes
   "did you mean" hint) rather than fuzzy-executed.
 * Ambiguity detection relies on calibrated confidence/margin gates; a few rare
   target-less phrases pass the gates and are then safely rejected during target
-  resolution.
-* The calculator supports basic arithmetic only (no functions, no percent-of).
+  resolution or answered with read-only information (system status, calculation).
+  A handful of near-miss requests ("bearbeite die notizen") can still be classified
+  as an open action; because the assistant can only *open* registered targets, the
+  worst case is opening the wrong registered item, never modifying or deleting one.
+* The calculator supports basic arithmetic only (no functions, no percent-of);
+  results with more than 1000 digits are refused.
 * `close_app` terminates without confirmation and only matches the registered
   executable path; it cannot close apps that were started outside their registered
   location.
-* Audit log has no rotation.
+* Audit log has no rotation; the UI tests need a Qt platform plugin and are skipped
+  on machines without one.
+* The classifier is a bag-of-words model: it generalizes to unseen German phrasings
+  but has no understanding of negation or long-range context.
 * No auto-update of the registry; it is maintained by hand on purpose.
 
 ## License

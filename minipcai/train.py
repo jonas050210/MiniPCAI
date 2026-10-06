@@ -232,6 +232,34 @@ def evaluate_split(
     }
 
 
+def safety_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Summarize the safety-relevant gate decisions of one split.
+
+    ``accepted_wrong`` counts requests that were classified as an action intent
+    with the wrong label and still passed the gates. For ``normal``/``typo``
+    examples that is a genuine misclassification; for ``unknown``/``ambiguous``
+    examples the request is out of scope and must be rejected or handled
+    safely by the downstream target resolution. Both numbers are reported so
+    that regressions are visible in the committed metrics.
+    """
+    decisions = metrics["category_decisions"]
+    in_scope_wrong = sum(
+        decisions[category]["accepted_wrong"]
+        for category in ("normal", "typo")
+    )
+    out_of_scope_accepted = sum(
+        decisions[category]["accepted_wrong"]
+        for category in ("unknown", "ambiguous")
+    )
+    rejected = sum(decisions[category]["rejected"] for category in decisions)
+    return {
+        "accepted_wrong_in_scope": in_scope_wrong,
+        "accepted_out_of_scope": out_of_scope_accepted,
+        "rejected": rejected,
+        "n": metrics["n"],
+    }
+
+
 def train(
     dataset_path: Path | str = DEFAULT_DATASET_PATH,
     models_dir: Path | str = MODELS_DIR,
@@ -253,6 +281,8 @@ def train(
     thresholds, calibration_table = calibrate_thresholds(classifier, splits["val"])
     val_metrics = evaluate_split(classifier, splits["val"], thresholds, classifier.labels)
     test_metrics = evaluate_split(classifier, splits["test"], thresholds, classifier.labels)
+    val_safety = safety_summary(val_metrics)
+    test_safety = safety_summary(test_metrics)
 
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     metadata: dict[str, Any] = {
@@ -271,10 +301,20 @@ def train(
         },
         "labels": list(classifier.labels),
         "feature_config": {
-            "word": {"analyzer": "word", "ngram_range": [1, 2], "sublinear_tf": True},
-            "char": {"analyzer": "char_wb", "ngram_range": [2, 4], "sublinear_tf": True},
+            "word": {
+                "analyzer": "word",
+                "ngram_range": [1, 2],
+                "sublinear_tf": True,
+                "preprocessor": "minipcai.textutils.normalize_for_model",
+            },
+            "char": {
+                "analyzer": "char_wb",
+                "ngram_range": [2, 4],
+                "sublinear_tf": True,
+                "preprocessor": "minipcai.textutils.normalize_for_model",
+            },
         },
-        "classifier": {"type": "LogisticRegression", "C": 5.0, "max_iter": 3000},
+        "classifier": {"type": "LogisticRegression", "C": 10.0, "max_iter": 3000},
         "split": {
             "seed": seed,
             "train": len(splits["train"]),
@@ -288,6 +328,10 @@ def train(
         "metrics_summary": {
             "test_accuracy": test_metrics["accuracy"],
             "test_macro_f1": test_metrics["macro_f1"],
+        },
+        "safety_summary": {
+            "test_accepted_wrong_in_scope": test_safety["accepted_wrong_in_scope"],
+            "test_accepted_out_of_scope": test_safety["accepted_out_of_scope"],
         },
     }
 
@@ -313,11 +357,15 @@ def train(
         },
         "validation": val_metrics,
         "test": test_metrics,
+        "safety": {
+            "validation": val_safety,
+            "test": test_safety,
+        },
     }
     write_metadata_files(models_dir, metadata, metrics)
 
     if not quiet:
-        _print_report(dataset, splits, thresholds, val_metrics, test_metrics)
+        _print_report(dataset, splits, thresholds, val_metrics, test_metrics, test_safety)
     return metrics
 
 
@@ -327,6 +375,7 @@ def _print_report(
     thresholds: Thresholds,
     val_metrics: dict[str, Any],
     test_metrics: dict[str, Any],
+    test_safety: dict[str, Any],
 ) -> None:
     print("=" * 62)
     print("MiniPCAI intent model - training report")
@@ -350,6 +399,18 @@ def _print_report(
         print(
             f"{category:<12}{stats['n']:>5}{stats['accepted_correct']:>6}"
             f"{stats['accepted_wrong']:>7}{stats['rejected']:>10}"
+        )
+    safety = test_safety
+    print()
+    print(
+        f"safety (test)  : accepted-wrong in-scope={safety['accepted_wrong_in_scope']} "
+        f"out-of-scope={safety['accepted_out_of_scope']} "
+        f"rejected={safety['rejected']}/{safety['n']}"
+    )
+    if safety["accepted_wrong_in_scope"]:
+        print(
+            "WARNING: the calibrated gates accepted at least one in-scope request "
+            "with the wrong intent on the test split. Review the dataset/thresholds."
         )
     print()
     print("test per-class F1:")

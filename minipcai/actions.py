@@ -63,6 +63,26 @@ def _format_gb(value: float) -> str:
     return f"{value / (1024 ** 3):.1f} GB"
 
 
+def _safe_resolve(value: str | Path) -> Path | None:
+    """``Path(value).resolve()`` that returns ``None`` instead of raising."""
+    try:
+        return Path(value).resolve()
+    except OSError:  # unreadable/invalid path: treat as "not the target"
+        return None
+
+
+def _system_drive() -> str:
+    """The drive reported by ``sys_disk`` (Windows system drive, else POSIX root)."""
+    if sys.platform != "win32":
+        return "/"
+    # Prefer the Windows system drive so the report matches the machine
+    # instead of assuming "C:".
+    drive = os.environ.get("SystemDrive", "").strip()
+    if not drive:
+        return "C:\\"
+    return drive if drive.endswith("\\") else drive + "\\"
+
+
 # ---------------------------------------------------------------------------
 # Dry-run executor
 # ---------------------------------------------------------------------------
@@ -184,25 +204,40 @@ class WindowsExecutor:
         if not executable.is_file():
             return ActionResult(ok=False, summary=f"Application not found: {executable}.")
         # Safe launch: list argv, shell disabled, no user-controlled parts.
-        subprocess.Popen([str(executable)], shell=False)
+        # The working directory is the application directory (derived from the
+        # registry path, never from user input): many Windows apps fail to
+        # start correctly without it.
+        try:
+            subprocess.Popen(
+                [str(executable)], shell=False, cwd=str(executable.parent)
+            )
+        except OSError as exc:
+            logger.warning("Could not start %s: %s", executable, exc)
+            return ActionResult(
+                ok=False, summary=f"Could not start '{plan.entry.id}': {exc}."
+            )
         return ActionResult(ok=True, summary=f"Opened app '{plan.entry.id}'.")
 
     def _close_app(self, plan: ActionPlan) -> ActionResult:
         _require_windows(plan.intent)
         target = Path(plan.entry.path)
-        target_resolved = target.resolve()
+        target_resolved = _safe_resolve(target)
+        if target_resolved is None:
+            return ActionResult(
+                ok=False, summary=f"Could not resolve the registered path: {target}."
+            )
         terminated: list[int] = []
         errors: list[str] = []
         for process in psutil.process_iter(["pid", "exe"]):
             try:
                 exe = process.info.get("exe")
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except psutil.Error:
                 continue
             if not exe:
                 continue
             # Security: only processes whose executable is exactly the
             # registered one are terminated.
-            if Path(exe).resolve() == target_resolved:
+            if _safe_resolve(exe) == target_resolved:
                 try:
                     process.terminate()
                     terminated.append(process.pid)
@@ -299,7 +334,7 @@ class WindowsExecutor:
         )
 
     def _sys_disk(self, plan: ActionPlan) -> ActionResult:
-        root = "C:\\" if sys.platform == "win32" else "/"
+        root = _system_drive()
         usage = shutil.disk_usage(root)
         return ActionResult(
             ok=True,
@@ -342,6 +377,7 @@ class WindowsExecutor:
         timer.daemon = True
         timer.start()
         self._timers.append(timer)
+        self._prune_timers()
         minutes = duration // 60
         seconds = duration % 60
         human = f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
@@ -350,6 +386,10 @@ class WindowsExecutor:
             summary=f"Timer started: {human}.",
             details={"duration_seconds": duration},
         )
+
+    def _prune_timers(self) -> None:
+        """Drop finished timers so the list cannot grow without bound."""
+        self._timers = [timer for timer in self._timers if timer.is_alive()]
 
     def _on_timer_elapsed(self, request_id: str, duration: int) -> None:
         """Called from a timer thread when a timer finishes."""

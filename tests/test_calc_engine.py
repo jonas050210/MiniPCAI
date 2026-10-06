@@ -80,6 +80,21 @@ class TestUnsafeInputs:
         with pytest.raises(CalcError, match="finite"):
             evaluate("(2**1000) / 0.000000000001")
 
+    def test_float_power_overflow_is_a_clean_error(self):
+        # A float power beyond the double range raises OverflowError in
+        # CPython; it must surface as a CalcError, never as a crash.
+        with pytest.raises(CalcError, match="too large"):
+            evaluate("999999999999999.0 ** 1000")
+
+    def test_huge_integer_result_is_refused(self):
+        # int -> str conversion is quadratic; such results are rejected
+        # before formatting instead of hanging or producing a huge string.
+        with pytest.raises(CalcError, match="digits"):
+            evaluate("999999999999999 ** 1000")
+
+    def test_large_but_reasonable_result_still_works(self):
+        assert evaluate("2**100") == str(2**100)
+
     def test_computed_exponent_rejected(self):
         # Exponent chains like 2**(2**1000) are structurally impossible.
         with pytest.raises(CalcError, match="exponent"):

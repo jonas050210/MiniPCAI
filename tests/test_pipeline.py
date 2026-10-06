@@ -231,6 +231,117 @@ class TestWindowsExecutorMode:
         assert result.intent == "find_file"
 
 
+class TestGeneralizationToNewPhrasings:
+    """Requests that are NOT part of the training dataset.
+
+    They verify that the classifier generalizes to unseen German phrasings
+    instead of memorizing the dataset. The set is deliberately kept small and
+    generic; it must never contain a text that also exists in the dataset.
+    """
+
+    CASES = [
+        ("ich hätte gerne den editor gestartet", "open_app"),
+        ("bring mir bitte den browser hoch", "open_app"),
+        ("kannst du den texteditor öffnen", "open_app"),
+        ("mach den editor bitte zu", "close_app"),
+        ("der browser soll sich schließen", "close_app"),
+        ("beende firefox sofort bitte", "close_app"),
+        ("zeig mir bitte die wikipedia seite", "open_url"),
+        ("ich möchte zu wikipedia", "open_url"),
+        ("öffne mir die datei rechnung", "open_file"),
+        ("kannst du die rechnung aufmachen", "open_file"),
+        ("zeig mir bitte die dokumente", "open_folder"),
+        ("mach den bilder ordner mal auf", "open_folder"),
+        ("wo finde ich die datei tabelle", "find_file"),
+        ("kannst du nach der rechnung suchen", "find_file"),
+        ("sag mir bitte die prozessorauslastung", "sys_cpu"),
+        ("wie viel arbeitsspeicher ist belegt bitte", "sys_ram"),
+        ("wie viel speicherplatz habe ich noch", "sys_disk"),
+        ("wie geht es dem rechner gerade so", "sys_summary"),
+        ("was ergibt 25 mal 4", "calc"),
+        ("stelle bitte einen timer auf 6 minuten", "timer"),
+    ]
+
+    @pytest.mark.parametrize(("text", "intent"), CASES)
+    def test_unseen_phrasing_is_understood(self, make_assistant, text, intent):
+        result = make_assistant().handle(text)
+        assert result.status == "ok", f"{text}: {result.message}"
+        assert result.intent == intent
+
+    @pytest.mark.parametrize(
+        "text",
+        ["wie wird das wetter in berlin", "schreib eine nachricht an max"],
+    )
+    def test_unseen_out_of_scope_request_is_rejected(self, make_assistant, text):
+        result = make_assistant().handle(text)
+        assert result.status == "rejected"
+        assert result.reason in {
+            "unknown_request", "low_confidence", "ambiguous_intent",
+            "target_not_found", "target_mismatch", "target_ambiguous",
+            "invalid_parameter", "unsafe_request",
+        }
+
+    def test_no_case_is_part_of_the_dataset(self):
+        from minipcai.config import DEFAULT_DATASET_PATH
+        from minipcai.dataset import load_dataset
+
+        dataset_texts = {example.text.lower() for example in load_dataset(
+            DEFAULT_DATASET_PATH
+        ).examples}
+        for text, _ in self.CASES:
+            assert text.lower() not in dataset_texts, text
+
+
+class TestRobustness:
+    def test_model_failure_is_reported_not_raised(self, make_assistant):
+        class BrokenModel:
+            labels = ("open_app", "unknown")
+            metadata: dict = {}
+
+            def predict(self, text):
+                raise RuntimeError("model exploded")
+
+        assistant = make_assistant()
+        assistant.model = BrokenModel()
+        result = assistant.handle("öffne notepad")
+        assert result.status == "rejected"
+        assert result.reason == "internal_error"
+        assert "model" in result.message
+
+    def test_model_without_ranked_predictions(self, make_assistant):
+        from minipcai.model import Prediction
+
+        class EmptyModel:
+            labels = ("open_app", "unknown")
+            metadata: dict = {}
+
+            def predict(self, text):
+                return Prediction(label="open_app", confidence=0.0, ranked=())
+
+        assistant = make_assistant()
+        assistant.model = EmptyModel()
+        result = assistant.handle("öffne notepad")
+        assert result.status == "rejected"
+        assert result.reason == "internal_error"
+
+    def test_non_string_input_is_rejected(self, make_assistant):
+        result = make_assistant().handle(None)  # type: ignore[arg-type]
+        assert result.status == "rejected"
+        assert result.reason == "invalid_request"
+
+    def test_unknown_executor_mode_is_refused(self, trained_model, registry_factory,
+                                              tmp_path):
+        from minipcai.pipeline import build_assistant
+
+        with pytest.raises(ValueError, match="Unknown executor mode"):
+            build_assistant(
+                model_path=trained_model,
+                registry_path=registry_factory(),
+                audit_path=tmp_path / "audit.jsonl",
+                executor_mode="shell",
+            )
+
+
 class TestResultObject:
     def test_to_dict_roundtrip(self, make_assistant):
         result = make_assistant().handle("was ist 12*4")

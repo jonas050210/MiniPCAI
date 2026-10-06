@@ -18,6 +18,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, Pipeline
 
+from minipcai.textutils import normalize_for_model
+
 MODEL_FORMAT = "minipcai-sklearn-v1"
 
 
@@ -50,6 +52,10 @@ def build_estimator() -> Pipeline:
     robustness against typos and German morphology. LogisticRegression keeps
     training well under a second on CPU for a dataset of this size and
     provides calibrated-enough probabilities for the confidence gates.
+
+    Both vectorizers share the :func:`~minipcai.textutils.normalize_for_model`
+    preprocessor, so casing and punctuation variants of a request produce the
+    same features while arithmetic operators survive for calculator requests.
     """
     features = FeatureUnion(
         [
@@ -61,6 +67,7 @@ def build_estimator() -> Pipeline:
                     sublinear_tf=True,
                     lowercase=True,
                     min_df=1,
+                    preprocessor=normalize_for_model,
                 ),
             ),
             (
@@ -71,11 +78,12 @@ def build_estimator() -> Pipeline:
                     sublinear_tf=True,
                     lowercase=True,
                     min_df=1,
+                    preprocessor=normalize_for_model,
                 ),
             ),
         ]
     )
-    classifier = LogisticRegression(C=5.0, max_iter=3000, solver="lbfgs")
+    classifier = LogisticRegression(C=10.0, max_iter=3000, solver="lbfgs")
     return Pipeline([("features", features), ("classifier", classifier)])
 
 
@@ -121,15 +129,25 @@ class SklearnIntentClassifier:
             raise ModelError(
                 f"trained model not found at {path}. Run 'minipcai-train' first."
             )
-        payload = joblib.load(path)
+        try:
+            payload = joblib.load(path)
+        except Exception as exc:  # corrupt/truncated artifact or foreign pickle
+            raise ModelError(f"could not read model artifact at {path}: {exc}") from exc
         if not isinstance(payload, dict) or payload.get("format") != MODEL_FORMAT:
             raise ModelError(f"unsupported model artifact at {path}")
-        labels = tuple(payload["labels"])
-        if not labels:
-            raise ModelError("model artifact declares no labels")
+        labels = payload.get("labels")
+        if (
+            not isinstance(labels, list)
+            or not labels
+            or not all(isinstance(label, str) and label for label in labels)
+            or len(set(labels)) != len(labels)
+        ):
+            raise ModelError("model artifact declares no valid, unique labels")
+        if "estimator" not in payload:
+            raise ModelError("model artifact contains no estimator")
         return cls(
             estimator=payload["estimator"],
-            labels=labels,
+            labels=tuple(labels),
             metadata=payload.get("metadata") or {},
         )
 

@@ -31,18 +31,29 @@ INVALID_PARAMETER = "invalid_parameter"
 # shells and script hosts; opening one would defeat the whole security model.
 _BLOCKED_EXECUTABLES = frozenset(
     {
+        # Windows command interpreters and script hosts
         "cmd.exe",
         "powershell.exe",
+        "powershell_ise.exe",
         "pwsh.exe",
         "wscript.exe",
         "cscript.exe",
         "mshta.exe",
-        "rundll32.exe",
-        "regsvr32.exe",
+        # Troubleshooter/proxy execution helpers (known LOLBin abuse)
+        "msdt.exe",
+        "fodhelper.exe",
+        "computerdefaults.exe",
+        # Registration / control-panel tooling
         "regedit.exe",
+        "regsvr32.exe",
+        "rundll32.exe",
+        "control.exe",
+        # POSIX shells inside Windows
         "wsl.exe",
         "bash.exe",
         "sh.exe",
+        "dash.exe",
+        # Console host (never useful to launch directly)
         "conhost.exe",
     }
 )

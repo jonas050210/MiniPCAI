@@ -5,9 +5,11 @@ from __future__ import annotations
 import pytest
 
 from minipcai.textutils import (
+    damerau_levenshtein,
     extract_math_expression,
     extract_search_term,
     normalize,
+    normalize_for_model,
     parse_duration,
 )
 
@@ -23,6 +25,41 @@ class TestNormalize:
         assert normalize("schließe die Tür") == "schließe die tür"
 
 
+class TestNormalizeForModel:
+    def test_keeps_arithmetic_operators(self):
+        assert normalize_for_model("was ist 12*4?") == "was ist 12*4"
+
+    def test_strips_other_punctuation(self):
+        assert normalize_for_model("Öffne Notepad, bitte!") == "öffne notepad bitte"
+
+    def test_collapses_whitespace(self):
+        assert normalize_for_model("  cpu   auslastung  ") == "cpu auslastung"
+
+    def test_matches_normalize_without_math(self):
+        text = "Schließe die Tür bitte!"
+        assert normalize_for_model(text) == normalize(text)
+
+
+class TestDamerauLevenshtein:
+    def test_identity_and_empty(self):
+        assert damerau_levenshtein("abc", "abc") == 0
+        assert damerau_levenshtein("", "abc") == 3
+        assert damerau_levenshtein("abc", "") == 3
+
+    def test_transposition_costs_one(self):
+        # A plain Levenshtein implementation would return 2 here.
+        assert damerau_levenshtein("ca", "ac") == 1
+        assert damerau_levenshtein("notepda", "notepad") == 1
+        assert damerau_levenshtein("donloads", "downloads") == 1
+
+    def test_classic_distance(self):
+        assert damerau_levenshtein("kitten", "sitting") == 3
+
+    def test_symmetric(self):
+        for a, b in (("notepad", "notepda"), ("rechnung", "rechnug"), ("abc", "abd")):
+            assert damerau_levenshtein(a, b) == damerau_levenshtein(b, a)
+
+
 class TestMathExtraction:
     @pytest.mark.parametrize(
         ("text", "expected"),
@@ -35,6 +72,9 @@ class TestMathExtraction:
             ("rechne 17,5 plus 2,5", "17.5 + 2.5"),
             ("berechne (2+3)*7", "(2+3)*7"),
             ("was ist 7 mal 8 minus 2", "7 * 8 - 2"),
+            ("rechne  12   plus   4", "12 + 4"),
+            ("was ist 12 * 4", "12 * 4"),
+            ("berechne 2 hoch 10 bitte", "2 ** 10"),
         ],
     )
     def test_extracts_expression(self, text, expected):

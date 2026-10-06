@@ -180,6 +180,11 @@ class Assistant:
                 details={"error": str(exc)},
             )
 
+        if not prediction.ranked:
+            return self._reject(
+                request_id, text, None, None, REASON_INTERNAL_ERROR,
+                "The intent model returned no usable prediction.",
+            )
         top_label, top_confidence = prediction.ranked[0]
         second_label, second_confidence = (
             prediction.ranked[1] if len(prediction.ranked) > 1 else ("", 0.0)
@@ -328,11 +333,19 @@ def build_assistant(
     executor_mode: str = "dry-run",
 ) -> Assistant:
     """Convenience factory used by the CLI and the UI."""
+    if executor_mode not in ("dry-run", "windows"):
+        raise ValueError(f"Unknown executor mode: {executor_mode!r}")
     model = SklearnIntentClassifier.load(model_path)
     if UNKNOWN_LABEL not in model.labels:
         raise ModelError("model artifact does not support the 'unknown' label")
     registry = Registry.load(registry_path)
     audit = AuditLogger(audit_path)
+    # Early warning only: the authoritative, fail-closed check happens per
+    # request right before execution.
+    try:
+        audit.check_writable()
+    except AuditError as exc:
+        logger.warning("Audit log problem at startup: %s", exc)
     thresholds = Thresholds()
     stored = model.metadata.get("thresholds")
     if isinstance(stored, dict):
@@ -343,13 +356,9 @@ def build_assistant(
             )
         except (KeyError, TypeError, ValueError):
             logger.warning("Ignoring invalid thresholds in model metadata")
-    executor: Executor
-    if executor_mode == "windows":
-        executor = WindowsExecutor(audit=audit)
-    elif executor_mode == "dry-run":
-        executor = DryRunExecutor()
-    else:
-        raise ValueError(f"Unknown executor mode: {executor_mode!r}")
+    executor: Executor = (
+        WindowsExecutor(audit=audit) if executor_mode == "windows" else DryRunExecutor()
+    )
     return Assistant(
         model=model, registry=registry, executor=executor, audit=audit,
         thresholds=thresholds,

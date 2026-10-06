@@ -36,8 +36,9 @@ class TestTrainedModel:
     def test_metadata_contains_required_fields(self, trained_model):
         model = SklearnIntentClassifier.load(trained_model)
         metadata = model.metadata
-        assert metadata["dataset"]["version"] == 1
-        assert metadata["dataset"]["n_examples"] > 700
+        assert metadata["dataset"]["version"] >= 2
+        assert metadata["dataset"]["n_examples"] > 1000
+        assert metadata["classifier"]["C"] == 10.0
         assert len(metadata["dataset"]["sha256"]) == 64
         assert 0 < metadata["thresholds"]["min_confidence"] < 1
         assert 0 < metadata["thresholds"]["min_margin"] < 1
@@ -74,6 +75,43 @@ class TestPersistence:
         joblib.dump({"something": "else"}, path)
         with pytest.raises(ModelError, match="unsupported model artifact"):
             SklearnIntentClassifier.load(path)
+
+    def test_load_artifact_without_labels(self, tmp_path):
+        import joblib
+
+        path = tmp_path / "broken.joblib"
+        joblib.dump({"format": "minipcai-sklearn-v1", "estimator": None}, path)
+        with pytest.raises(ModelError, match="labels"):
+            SklearnIntentClassifier.load(path)
+
+    def test_load_artifact_with_invalid_labels(self, tmp_path):
+        import joblib
+
+        path = tmp_path / "broken.joblib"
+        joblib.dump({"format": "minipcai-sklearn-v1", "labels": ["a", "a"],
+                     "estimator": None}, path)
+        with pytest.raises(ModelError, match="labels"):
+            SklearnIntentClassifier.load(path)
+
+    def test_load_corrupt_file(self, tmp_path):
+        path = tmp_path / "corrupt.joblib"
+        path.write_bytes(b"this is not a joblib payload")
+        with pytest.raises(ModelError):
+            SklearnIntentClassifier.load(path)
+
+    def test_estimator_uses_math_preserving_preprocessor(self):
+        from minipcai.textutils import normalize_for_model
+
+        estimator = build_estimator()
+        features = dict(estimator.named_steps["features"].transformer_list)
+        for name in ("word", "char"):
+            assert features[name].preprocessor is normalize_for_model
+
+    def test_predictions_ignore_case_and_punctuation(self, trained_model):
+        model = SklearnIntentClassifier.load(trained_model)
+        plain = model.predict("öffne notepad")
+        for variant in ("Öffne Notepad!", "oeffne notepad?", "  ÖFFNE   NOTEPAD  "):
+            assert model.predict(variant).label == plain.label
 
 
 class TestEstimator:

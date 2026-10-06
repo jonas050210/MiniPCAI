@@ -67,6 +67,34 @@ class TestRegistryTargets:
         assert excinfo.value.details["suggestion_entry"] == "downloads"
 
 
+class TestResolutionDeterminism:
+    def test_multiple_other_sections_fall_back_to_not_found(self, registry):
+        # Text mentions a folder AND a website, but the intent is open_app:
+        # with more than one foreign section matching, no guess is made.
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("open_app", "öffne die downloads und wikipedia", registry)
+        assert excinfo.value.reason == TARGET_NOT_FOUND
+
+    def test_single_foreign_section_gives_a_deterministic_hint(self, registry):
+        first = None
+        for _ in range(5):  # no set-iteration order may leak into the result
+            with pytest.raises(TargetError) as excinfo:
+                resolve_target("close_app", "schließe die notizen", registry)
+            detail = (excinfo.value.reason, excinfo.value.details.get("suggestion_entry"))
+            first = first or detail
+            assert detail == first
+        assert first[0] == TARGET_MISMATCH
+        assert first[1] == "notes"
+
+    def test_longest_alias_wins_within_one_entry(self, registry_factory):
+        registry = Registry.load(registry_factory(folders=[
+            {"id": "downloads", "aliases": ["downloads", "download ordner"],
+             "path": "/tmp/downloads", "searchable": True},
+        ]))
+        matches = registry.find_matches("öffne den download ordner", "folders")
+        assert [match.alias for match in matches] == ["download ordner"]
+
+
 class TestFindFile:
     def test_resolves_term_and_roots(self, registry):
         plan = resolve_target("find_file", "finde die datei rechnung", registry)

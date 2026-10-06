@@ -1,14 +1,19 @@
 """Generate the versioned MiniPCAI intent dataset.
 
 The dataset is the single source of truth for training the intent classifier.
-It is a versioned JSONL file (``data/intent_dataset.v1.jsonl``) where each row
+It is a versioned JSONL file (``data/intent_dataset.v<N>.jsonl``) where each row
 has the following fields:
 
 * ``id``        - stable unique identifier (``<label>-<counter>``)
 * ``text``      - the German user utterance
 * ``label``     - one of the 12 action intents or ``unknown``
 * ``category``  - ``normal`` | ``typo`` | ``unknown`` | ``ambiguous``
-* ``version``   - dataset version (must match the file name)
+* ``version``   - dataset version (must match the file name; the loader rejects
+                  files whose name and rows disagree)
+
+The version in the file name is also how the application finds the dataset: the
+highest ``intent_dataset.v*.jsonl`` in ``data/`` is used, so bumping
+``DATASET_VERSION`` below is all that is needed to publish a new dataset.
 
 Category semantics:
 
@@ -37,7 +42,7 @@ import random
 from collections import Counter
 from pathlib import Path
 
-DATASET_VERSION = 1
+DATASET_VERSION = 2
 
 # ---------------------------------------------------------------------------
 # Handwritten German example utterances per action intent (category "normal")
@@ -872,6 +877,650 @@ AMBIGUOUS_EXAMPLES: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Dataset v2 additions: further paraphrases, near-miss rejections and
+# ambiguous requests. They improve generalization to phrasings that the
+# handwritten v1 lists do not cover and teach the classifier sharper
+# boundaries between similar intents (e.g. RAM "speicher" vs. disk
+# "speicherplatz") and between supported and unsupported requests.
+# ---------------------------------------------------------------------------
+
+EXTRA_NORMAL_EXAMPLES: dict[str, list[str]] = {
+    "open_app": [
+        "ich würde gerne den rechner starten",
+        "kannst du mir bitte den editor aufmachen",
+        "öffne doch mal das malprogramm",
+        "starte bitte das mailprogramm",
+        "mach mir bitte den browser auf",
+        "ich bräuchte den texteditor",
+        "öffne firefox für mich",
+        "editor starten",
+        "notepad bitte öffnen",
+        "könnten sie word starten",
+        "bring den taschenrechner hoch",
+        "ich möchte paint benutzen",
+        "mach chrome mal auf",
+        "öffne mir bitte firefox",
+        "ich will den editor öffnen",
+        "den browser starten bitte",
+        "kannste notepad starten",
+        "ich hätte gerne word geöffnet",
+        "öffne das malprogramm bitte",
+        "starte firefox mal",
+        "rechner starten bitte",
+        "öffne den editor für mich",
+        "ich möchte den medienplayer starten",
+        "bring mir bitte vlc hoch",
+        "kannst du chrome starten",
+        "öffne teams bitte",
+        "starte das mailprogramm bitte",
+        "ich bräuchte bitte den rechner",
+        "mach den editor mal auf",
+        "taschenrechner starten bitte",
+        "öffne paint mal",
+        "ich würde gerne firefox öffnen",
+        "starte den browser mal",
+        "kannst du bitte word öffnen",
+        "öffne excel für mich",
+        "mach mir excel auf",
+        "ich möchte chrome starten",
+        "starte outlook bitte",
+        "öffne den editor mal",
+        "bring bitte den browser hoch",
+    ],
+    "close_app": [
+        "mach mal den editor zu bitte",
+        "der browser soll beendet werden",
+        "beende bitte das mailprogramm",
+        "schließe firefox jetzt",
+        "notepad kann zugehen",
+        "beende das programm word",
+        "mach den taschenrechner zu bitte",
+        "stoppe chrome",
+        "ich möchte den editor schließen",
+        "beende vlc bitte sofort",
+        "kannst du firefox beenden bitte",
+        "mach chrome zu",
+        "der editor soll zugehen",
+        "schließe bitte den browser",
+        "beende excel bitte",
+        "word bitte beenden",
+        "ich will notepad schließen",
+        "mach den browser mal zu",
+        "stoppe bitte den editor",
+        "beende das mailprogramm",
+        "kannste chrome zu machen",
+        "schließ mal word",
+        "beende firefox bitte sofort",
+        "der rechner soll beendet werden",
+        "mach bitte vlc zu",
+        "ich möchte word beenden",
+        "stoppe firefox",
+        "beende bitte chrome",
+        "schließe den editor bitte",
+        "mach notepad mal zu",
+    ],
+    "open_url": [
+        "mach mal wikipedia auf",
+        "ich möchte auf youtube gehen",
+        "zeig mir bitte die webseite github",
+        "öffne die suchmaschine google",
+        "geh bitte auf wikipedia",
+        "kannst du youtube aufrufen",
+        "bring mich zu google",
+        "die webseite wikipedia bitte öffnen",
+        "ruf die seite github auf",
+        "ich will zu wikipedia",
+        "öffne youtube bitte für mich",
+        "mach google mal auf",
+        "zeig mir die wikipedia seite",
+        "ich möchte google öffnen",
+        "geh auf youtube bitte",
+        "kannst du die webseite wikipedia öffnen",
+        "ruf bitte youtube auf",
+        "öffne die seite github",
+        "starte bitte die webseite wikipedia",
+        "mach mir wikipedia auf",
+        "ich würde gerne zu google gehen",
+        "zeig mir bitte google",
+        "wikipedia bitte aufrufen",
+        "öffne die github seite mal",
+        "geh zu wikipedia",
+    ],
+    "open_file": [
+        "öffne bitte die datei rechnung",
+        "zeig mir das protokoll",
+        "ich möchte den bericht sehen",
+        "mach die datei tabelle auf",
+        "kannst du die präsentation öffnen",
+        "die rechnung möchte ich öffnen",
+        "öffne mir bitte die notizen",
+        "datei protokoll anzeigen",
+        "ich hätte gern die tabelle geöffnet",
+        "mach den bericht mal auf",
+        "zeig mir bitte die rechnung",
+        "ich will die notizen öffnen",
+        "die datei tabelle bitte öffnen",
+        "öffne die präsentation mal",
+        "kannst du mir den bericht zeigen",
+        "bericht anzeigen bitte",
+        "mach mir die tabelle auf",
+        "ich möchte die präsentation sehen",
+        "öffne das protokoll bitte",
+        "die notizen möchte ich sehen",
+        "zeig mir die datei rechnung",
+        "kannste die notizen aufmachen",
+        "rechnung bitte öffnen",
+        "mach die präsentation mal auf",
+        "ich bräuchte die datei protokoll",
+        "öffne die tabelle für mich",
+        "tabelle bitte anzeigen",
+        "die datei bericht öffnen bitte",
+        "zeig mir mal die notizen",
+        "ich hätte gerne die rechnung geöffnet",
+    ],
+    "open_folder": [
+        "öffne bitte den downloads ordner",
+        "ich möchte in die dokumente",
+        "zeig mir die bilder",
+        "mach den ordner musik auf",
+        "kannst du die downloads öffnen",
+        "bilder ordner bitte anzeigen",
+        "öffne den dokumente ordner mal",
+        "ich will die downloads sehen",
+        "den videos ordner öffnen bitte",
+        "bring den bilder ordner hoch",
+        "zeig mir bitte die downloads",
+        "mach die dokumente mal auf",
+        "ich möchte den bilder ordner öffnen",
+        "downloads bitte anzeigen",
+        "öffne den musik ordner",
+        "kannst du mir die bilder zeigen",
+        "der downloads ordner soll aufgehen",
+        "mach mir die dokumente auf",
+        "ich will in die bilder",
+        "öffne die dokumente für mich",
+        "videos ordner bitte öffnen",
+        "zeig mir den musik ordner",
+        "bilder bitte anzeigen",
+        "den downloads ordner mal öffnen",
+        "ich hätte gern die dokumente geöffnet",
+        "mach den videos ordner mal auf",
+        "öffne die musik mal",
+        "kannste die downloads aufmachen",
+        "dokumente ordner bitte anzeigen",
+        "ich möchte die musik sehen",
+    ],
+    "find_file": [
+        "suche bitte die datei rechnung",
+        "wo finde ich das protokoll",
+        "ich suche die tabelle",
+        "kannst du die notizen finden",
+        "finde bitte die präsentation",
+        "wo ist mein bericht gespeichert",
+        "durchsuche die dokumente nach rechnung",
+        "ich möchte die datei tabelle finden",
+        "such mir bitte den bericht",
+        "finde die pdf datei mit der rechnung",
+        "wo ist die datei tabelle bitte",
+        "kannst du mir die rechnung suchen",
+        "ich möchte den bericht finden",
+        "suche die datei protokoll bitte",
+        "finde bitte die notizen",
+        "wo habe ich die tabelle gespeichert",
+        "such die präsentation bitte",
+        "ich suche die datei bericht",
+        "kannst du das protokoll finden",
+        "finde mir bitte die rechnung",
+        "wo liegt die datei tabelle",
+        "durchsuche bitte die downloads nach rechnung",
+        "suche nach der datei protokoll",
+        "ich möchte die präsentation suchen",
+        "finde die notizen bitte",
+        "wo ist die präsentation bitte",
+        "kannste mir den bericht suchen",
+        "such bitte die datei rechnung",
+        "ich suche mein protokoll",
+        "finde die datei mit der tabelle",
+    ],
+    "sys_cpu": [
+        "wie stark ist der prozessor ausgelastet",
+        "sag mir bitte die cpu last",
+        "wie ist die cpu auslastung gerade",
+        "prozessor auslastung bitte anzeigen",
+        "wie viel prozent cpu werden gerade genutzt",
+        "zeig mir die prozessorlast",
+        "wie hoch ist die prozessorlast bitte",
+        "cpu status bitte",
+        "ist die cpu stark ausgelastet",
+        "aktuelle cpu auslastung bitte",
+        "wie ist die prozessor auslastung",
+        "sag mir die cpu auslastung bitte",
+        "cpu last bitte anzeigen",
+        "wie stark ist die cpu ausgelastet bitte",
+        "zeig mir bitte die cpu auslastung",
+        "prozessorlast bitte zeigen",
+        "wie viel last hat die cpu gerade",
+        "cpu werte bitte",
+        "ist der prozessor stark ausgelastet",
+        "aktuelle prozessorlast bitte",
+    ],
+    "sys_ram": [
+        "wie viel arbeitsspeicher wird gerade benutzt",
+        "sag mir den ram verbrauch",
+        "wie voll ist der ram bitte",
+        "ram auslastung bitte zeigen",
+        "wie viel speicher ist noch frei bitte",
+        "zeig mir den speicherverbrauch",
+        "ist der arbeitsspeicher voll",
+        "wie viel hauptspeicher habe ich noch",
+        "ram status bitte anzeigen",
+        "wie stark ist der speicher belegt",
+        "wie viel ram ist belegt bitte",
+        "sag mir bitte wie viel ram frei ist",
+        "speicherverbrauch bitte anzeigen",
+        "wie viel arbeitsspeicher ist frei bitte",
+        "zeig mir bitte den ram verbrauch",
+        "ist der speicher voll",
+        "wie viel speicher wird gerade benutzt",
+        "ram belegung bitte",
+        "wie stark ist der arbeitsspeicher belegt bitte",
+        "freier speicher bitte anzeigen",
+        "hauptspeicher status bitte",
+        "wie viel ram habe ich noch bitte",
+        "wie stark ist der ram belegt",
+        "ist viel speicher belegt",
+        "wie viel speicher ist belegt bitte",
+    ],
+    "sys_disk": [
+        "wie viel speicherplatz ist auf der festplatte frei",
+        "sag mir die festplatten belegung",
+        "ist die festplatte bald voll",
+        "wie viel gb sind auf c noch frei",
+        "speicherplatz bitte anzeigen",
+        "zeig mir den freien platz auf der platte",
+        "wie groß ist die ssd bitte",
+        "festplatten speicher bitte prüfen",
+        "wie viel platz habe ich noch bitte",
+        "laufwerk c auslastung bitte",
+        "wie voll ist die festplatte bitte",
+        "sag mir bitte wie viel speicherplatz frei ist",
+        "festplatten belegung bitte zeigen",
+        "wie viel speicher ist auf c frei",
+        "zeig mir bitte die festplatten auslastung",
+        "ssd speicher bitte anzeigen",
+        "wie viel gb hat die festplatte noch",
+        "freier speicherplatz bitte",
+        "wie ist die festplatten auslastung",
+        "wie viel speicher ist auf laufwerk c frei",
+        "wie viel speicherplatz ist auf c frei",
+        "speicher auf c bitte anzeigen",
+        "wie viel ist auf c belegt",
+        "c laufwerk speicher bitte",
+        "wie viel speicher hat laufwerk c noch",
+        "speicherplatz auf c bitte prüfen",
+        "wie voll ist laufwerk c bitte",
+    ],
+    "sys_summary": [
+        "wie geht es dem system gerade",
+        "gib mir einen systembericht",
+        "zeig mir alle systemwerte bitte",
+        "wie steht der pc da",
+        "system übersicht bitte",
+        "ist das system in ordnung",
+        "wie performt das system bitte",
+        "kurzer statusbericht über den rechner bitte",
+        "zeig mir cpu ram und festplatte bitte",
+        "überblick über das system bitte",
+        "wie läuft der rechner bitte",
+        "sag mir den systemstatus",
+        "systemstatus bitte anzeigen",
+        "ist der pc in ordnung",
+        "wie geht es dem pc jetzt so",
+        "gib mir bitte eine systemübersicht",
+        "zeig mir den pc status",
+        "wie steht es um das system bitte",
+        "systemzustand bitte",
+        "kurzer systembericht",
+    ],
+    "calc": [
+        "was ergibt 15 mal 4",
+        "rechne bitte 99 geteilt durch 9",
+        "wie viel ist 8 plus 9",
+        "berechne 3 hoch 4 bitte",
+        "was ist 50 minus 17",
+        "kannst du 6*7 ausrechnen",
+        "rechne 2,5 plus 3,5",
+        "wie viel ergibt 12 durch 4",
+        "was ist 100 plus 200 bitte",
+        "berechne (4+5)*2",
+        "was ist 7 mal 7",
+        "rechne 1000 minus 1",
+        "wie viel ist 3 mal 3 mal 3",
+        "berechne bitte 2 hoch 5",
+        "was ergibt 50 plus 50",
+        "kannst du 12 plus 12 rechnen",
+        "rechne 8 durch 2",
+        "wie viel ist 20 mal 5",
+        "was ist 99 minus 33 bitte",
+        "berechne 6 hoch 2",
+        "rechne bitte 15 plus 15",
+        "wie viel ist 100 durch 10",
+        "was ergibt 4 mal 25",
+        "berechne 1 plus 1",
+        "kannst du mir 5*5 sagen",
+    ],
+    "timer": [
+        "stelle bitte einen timer auf 7 minuten",
+        "timer auf 20 sekunden bitte",
+        "erinnere mich in 45 minuten",
+        "wecker auf 2 stunden bitte",
+        "stelle einen timer auf 90 minuten",
+        "timer für 15 minuten bitte",
+        "erinnerung in 10 minuten bitte",
+        "stelle einen kurzen timer auf 30 sekunden",
+        "timer auf eine stunde bitte",
+        "kannst du einen timer auf 5 minuten stellen",
+        "stelle einen timer auf 3 minuten bitte",
+        "wecker auf 60 sekunden bitte",
+        "erinnere mich bitte in 20 minuten",
+        "timer auf 25 minuten bitte",
+        "setze bitte einen timer auf 10 minuten",
+        "stelle einen wecker auf 15 minuten",
+        "timer über 40 sekunden bitte",
+        "erinnerung in 2 stunden bitte",
+        "stelle mir bitte einen timer auf 8 minuten",
+        "kurzzeitwecker auf 10 minuten bitte",
+        "timer auf 5 minuten und 10 sekunden",
+        "stelle einen timer auf 2 minuten bitte",
+        "wecker in 30 minuten bitte",
+        "kannst du mir einen wecker auf 5 minuten stellen",
+        "timer auf 12 minuten bitte",
+    ],
+}
+
+EXTRA_HANDWRITTEN_TYPOS: dict[str, list[str]] = {
+    "open_app": [
+        "ich würde gerne den rechne starten",
+        "kannst du mir bitte den editr aufmachen",
+        "öffne doch mal das malproramm",
+        "starte bitte das mailproramm",
+        "mach mir bitte den broweser auf",
+        "öffne firefox für mich bitte",
+        "notpad bitte öffnen",
+        "rechnr starten bitte",
+    ],
+    "close_app": [
+        "mach mal den editr zu bitte",
+        "der broweser soll beendet werde",
+        "beende bitte das mailproramm",
+        "schließe firefox jetz",
+        "stope chrome",
+        "mach notepad mal z",
+    ],
+    "open_url": [
+        "mach mal wikipdeia auf",
+        "öffne die suchmaschiene google",
+        "kannst du yutube aufrufen",
+        "ruf die seite gihub auf",
+        "geh zu wikpedia",
+    ],
+    "open_file": [
+        "öffne bitte die datei rechnug",
+        "zeig mir das protokol",
+        "mach die datei tabelle uaf",
+        "kannst du die präsentatoin öffnen",
+        "tabelle bitte anzeigenn",
+    ],
+    "open_folder": [
+        "öffne bitte den donloads ordner",
+        "mach den ordner musik uaf",
+        "kannst du die downlaods öffnen",
+        "bilder ordner bitte anzeigenn",
+        "öffne den musik odner",
+    ],
+    "find_file": [
+        "suche bitte die datei rechnnug",
+        "wo finde ich das protokol",
+        "kannst du die notzen finden",
+        "finde bitte die präsentatoin",
+        "wo liegt die datei tabel",
+    ],
+    "sys_cpu": [
+        "wie starc ist der prozessor ausgelastet",
+        "sag mir bitte die cpu lst",
+        "prozessor auslastung bite anzeigen",
+        "cpu status bite",
+    ],
+    "sys_ram": [
+        "wie viel arbeitspeicher ist noch frei bitte",
+        "sag mir den ram verbaruch",
+        "ram status bite anzeigen",
+        "wie starc ist der speicher belegt",
+    ],
+    "sys_disk": [
+        "wie viel speicherpltz ist auf der festplatte frei",
+        "sag mir die festplatten belegun",
+        "ist die festplatte bald vol",
+        "speicherpltz bitte anzeigen",
+    ],
+    "sys_summary": [
+        "wie geht es dem system gerde",
+        "gib mir einen systembericnt",
+        "system übersicht bite",
+        "ist der pc in ordnung bitte",
+    ],
+    "calc": [
+        "was ergibt 15 mal 4 bite",
+        "rechne bitte 99 geteilt durc 9",
+        "berechne 3 hcoh 4 bitte",
+        "kannst du 6*7 ausrechenen",
+    ],
+    "timer": [
+        "stelle bitte einen timr auf 7 minuten",
+        "timer auf 20 sekunden bite",
+        "erinnere mich in 45 miniten",
+        "wecker auf 2 stundn bitte",
+        "timer auf 25 minitten bitte",
+    ],
+}
+
+# Near-miss requests that must NOT be executed. Many look similar to supported
+# intents but ask for something the MVP deliberately does not do (percentages,
+# square roots, currency conversion, unregistered apps, ...).
+EXTRA_UNKNOWN: list[str] = [
+    "was ist mit dem system los",
+    "mach mal was",
+    "zeig mir was",
+    "starte irgendetwas",
+    "beende irgendwas",
+    "öffne alles",
+    "wie hoch ist der speicher",
+    "wie ist der stand",
+    "sag mir die auslastung",
+    "zeig die werte",
+    "ist der pc ok",
+    "was läuft gerade",
+    "wie ist die lage",
+    "mach was auf",
+    "schließe irgendwas",
+    "starte mal was",
+    "suche was",
+    "finde was",
+    "wie viel prozent sind 50 von 200",
+    "was ist die wurzel aus 16",
+    "wie viel sind 100 euro in dollar",
+    "rechne die prozent aus",
+    "was ist der umsatzsteuersatz",
+    "öffne meine emails",
+    "öffne meinen kalender",
+    "öffne die einstellungen",
+    "öffne den task manager",
+    "öffne den papierkorb",
+    "öffne die energieeinstellungen",
+    "öffne die fenster",
+    "öffne die kamera",
+    "öffne das netzwerk",
+    "öffne die lautstärke",
+    "ändere die auflösung",
+    "ändere die sprache",
+    "stelle die uhrzeit um",
+    "aktualisiere die treiber",
+    "leere den zwischenspeicher",
+    "repariere die festplatte",
+    "prüfe die festplatte auf fehler",
+    "wie viele dateien habe ich",
+    "wie groß sind meine dokumente",
+    "zeig mir alle dateien an",
+    "liste die programme auf",
+    "welche apps laufen",
+    "wie viele kerne hat die cpu",
+    "wie viel watt verbraucht der pc",
+    "wie heiß ist der prozessor",
+    "zeig mir die temperatur",
+    "wie alt ist der pc",
+    "welche windows version habe ich",
+    "zeig mir die ip adresse",
+    "wie schnell ist mein internet",
+    "mach einen speedtest",
+    "verbinde mich mit dem internet",
+    "schalte bluetooth aus",
+    "aktiviere den flugmodus",
+    "mach einen screenshot vom bildschirm",
+    "nimm ein foto auf",
+    "zeichne etwas auf",
+    "übersetze den text ins englische",
+    "fasse das dokument zusammen",
+    "lese die nachrichten vor",
+    "schreib eine email an anna",
+    "beantworte die mail von max",
+    "bestell mir eine pizza",
+    "spiel ein lied ab",
+    "nächstes video bitte",
+    "erhöhe die lautstärke",
+    "verringere die helligkeit",
+    "aktiviere den dunklen modus",
+    "leere den papierkorb bitte",
+    "wer ist bundeskanzler",
+    "wann kommt der weihnachtsmann",
+    "ist heute ein feiertag",
+    "was kostet ein flug nach mallorca",
+    "sag mir die uhrzeit",
+    "wie viele einwohner hat berlin",
+    "wie wird das wetter übermorgen",
+    # Unsupported verbs applied to registered targets: never execute these.
+    "bearbeite die datei rechnung",
+    "bearbeite das protokoll",
+    "bearbeite die downloads",
+    "lese mir die rechnung vor",
+    "lese das protokoll vor",
+    "lese mir die downloads vor",
+    "schreibe in die rechnung",
+    "schreibe etwas in die notizen",
+    "kopiere die rechnung",
+    "verschiebe die rechnung in die dokumente",
+    "benenne die rechnung um",
+    "drucke die rechnung",
+    "drucke die downloads",
+    "speichere die notizen",
+    "sichere die datei rechnung",
+    "sichere die dokumente",
+    "entferne notepad",
+    "entferne firefox",
+    "repariere notepad",
+    "installiere firefox",
+    "aktualisiere firefox",
+    "leere die downloads",
+    "leere die dokumente",
+    "lösche die downloads",
+    "lösche die dokumente",
+    "lösche die bilder",
+    "lösche die rechnung",
+    "wie groß ist die datei rechnung",
+    "wie viele dateien sind in den downloads",
+    "wie viele dateien sind in den dokumenten",
+    "öffne die notizen zum bearbeiten",
+    "zeig mir den inhalt der festplatte",
+    "mach die downloads kleiner",
+    "sortiere die downloads",
+    "benenne die downloads um",
+]
+
+# Ambiguous requests: several intents or targets are plausible, so the only
+# safe answer is to ask for clarification (trained towards ``unknown``).
+EXTRA_AMBIGUOUS: list[str] = [
+    "beende das programm",
+    "öffne irgendwas",
+    "wie ist die auslastung",
+    "speicher bitte",
+    "auslastung bitte",
+    "system bitte",
+    "mach das auf",
+    "starte etwas",
+    "beende etwas",
+    "öffne etwas",
+    "zeig mir etwas",
+    "rechne etwas",
+    "öffne mal was",
+    "beende mal was",
+    "suche mal was",
+    "öffne die datei",
+    "starte das programm",
+    "beende die anwendung",
+    "schließe die anwendung",
+    "wie ist die speicherauslastung",
+    "zeig mir die auslastung",
+    "wie voll ist der speicher",
+    "timer",
+    "wecker",
+    "rechner",
+    "berechne etwas",
+    "stelle einen timer",
+    "erinnere mich",
+    "finde die datei",
+    "suche die datei",
+    # Bare pronouns / placeholders instead of a concrete target name.
+    "starte das mal",
+    "öffne das mal",
+    "mach das mal",
+    "starte das da",
+    "öffne das da",
+    "das da starten",
+    "das mal starten",
+    "mach das da auf",
+    "beende das mal",
+    "schließe das mal",
+    "starte das ding",
+    "öffne das teil",
+    "beende das teil",
+    "mach das teil zu",
+    # "Find a file" without saying which file.
+    "finde eine datei",
+    "suche eine datei",
+    "finde die datei bitte",
+    "suche die datei bitte",
+    "ich suche eine datei",
+    "finde mir eine datei",
+    "suche nach einer datei",
+    "wo ist eine datei",
+    "finde einen ordner",
+    "suche einen ordner",
+    # Bare resource words without a concrete question.
+    "speicher",
+    "speicher anzeigen lassen",
+    "wie ist der speicherstand",
+    "speicherverbrauch",
+    "ram bitte",
+    "cpu bitte",
+    "festplatte bitte",
+    "system status bitte",
+    "pc status",
+    "rechner status",
+    "auslastung",
+    "speicherplatz",
+    "wie ist die speicherbelegung",
+]
+
+# ---------------------------------------------------------------------------
 # Deterministic typo augmentation
 # ---------------------------------------------------------------------------
 
@@ -921,9 +1570,44 @@ def augment_with_typos(
     return out
 
 
+def merged_examples() -> tuple[
+    dict[str, list[str]], dict[str, list[str]], list[str], list[str]
+]:
+    """Combine the handwritten v1 lists with the v2 additions.
+
+    Returns ``(normal_examples, handwritten_typos, unknown, ambiguous)``.
+    Raises :class:`ValueError` when an addition references an unknown label.
+    """
+    unknown_labels = set(EXTRA_NORMAL_EXAMPLES) - set(NORMAL_EXAMPLES)
+    if unknown_labels:
+        raise ValueError(f"unknown labels in EXTRA_NORMAL_EXAMPLES: {sorted(unknown_labels)}")
+    unknown_typo_labels = set(EXTRA_HANDWRITTEN_TYPOS) - set(NORMAL_EXAMPLES)
+    if unknown_typo_labels:
+        raise ValueError(
+            f"unknown labels in EXTRA_HANDWRITTEN_TYPOS: {sorted(unknown_typo_labels)}"
+        )
+    normal_examples = {
+        label: list(examples) + EXTRA_NORMAL_EXAMPLES.get(label, [])
+        for label, examples in NORMAL_EXAMPLES.items()
+    }
+    handwritten_typos = {
+        label: list(HANDWRITTEN_TYPOS[label]) + EXTRA_HANDWRITTEN_TYPOS.get(label, [])
+        for label in NORMAL_EXAMPLES
+    }
+    return (
+        normal_examples,
+        handwritten_typos,
+        UNKNOWN_NORMAL + EXTRA_UNKNOWN,
+        AMBIGUOUS_EXAMPLES + EXTRA_AMBIGUOUS,
+    )
+
+
 def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
     rows: list[dict] = []
     seen_texts: set[str] = set()
+    normal_examples, handwritten_typos, unknown_examples, ambiguous_examples = (
+        merged_examples()
+    )
 
     def add(label: str, text: str, category: str) -> None:
         text = " ".join(text.split())
@@ -939,10 +1623,10 @@ def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
         rows.append(row)
 
     # Action intents: normal + handwritten typos + augmented typos.
-    for label, examples in NORMAL_EXAMPLES.items():
+    for label, examples in normal_examples.items():
         for text in examples:
             add(label, text, "normal")
-        for text in HANDWRITTEN_TYPOS[label]:
+        for text in handwritten_typos[label]:
             add(label, text, "typo")
         base = [(label, text) for text in examples]
         label_seed = seed + sum(ord(char) for char in label)
@@ -954,9 +1638,9 @@ def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
                 pass  # augmentation collided with an existing example; skip it
 
     # Unknown and ambiguous requests share the "unknown" label.
-    for text in UNKNOWN_NORMAL:
+    for text in unknown_examples:
         add("unknown", text, "unknown")
-    for text in AMBIGUOUS_EXAMPLES:
+    for text in ambiguous_examples:
         add("unknown", text, "ambiguous")
 
     # Assign stable ids per label.
