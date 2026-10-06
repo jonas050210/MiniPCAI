@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# Trained model artifacts (regenerate with `minipcai-train`).
+# Metrics and metadata are kept in git; the binary model is not.
+models/*
+!models/metadata.json
+!models/metrics.json
+
+# Local runtime state
+*.log
