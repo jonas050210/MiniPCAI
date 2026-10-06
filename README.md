@@ -132,13 +132,33 @@ requests are then refused.
   `LogisticRegression` (`C=10`) — trains in a few seconds on CPU. Both vectorizers
   share the `normalize_for_model` preprocessor, so casing/punctuation variants map to
   the same features while arithmetic operators survive for calculator requests.
-* Thresholds (`min_confidence`, `min_margin`) are calibrated on the validation split
-  under safety constraints (no wrongly accepted request, at most one unknown accept).
+* Thresholds (`min_confidence`, `min_margin`) are calibrated on the validation split.
+  Grid pairs that meet the preferred safety bounds (no wrongly accepted in-scope
+  request, at most one unknown/ambiguous accept) are preferred, taking the pair with
+  the most accepted-and-correct decisions. When no grid pair meets those bounds —
+  which is the case for the v2 validation split, where the lowest reachable number of
+  accepted unknown/ambiguous examples is 4 — selection falls back to the penalty
+  score, which heavily weights wrong and out-of-scope accepts. The chosen row,
+  including its `accepted_unknown` count, is recorded in `models/metrics.json`
+  (`threshold_calibration`); for the committed artifacts the chosen thresholds are
+  (0.5, 0.3) with 4 unknown/ambiguous accepts out of 220 validation examples.
 * Current results (seed 42, 70/15/15 split): validation accuracy 0.941 /
   macro-F1 0.951, test accuracy 0.923 / macro-F1 0.940. The safety-relevant number is
   `accepted_wrong_in_scope`: **0** — no request with a valid label was accepted with
   the wrong intent on either split. The few out-of-scope requests that pass the gates
   are either refused during target resolution or answered with read-only information.
+* Held-out generalization is checked by
+  `tests/test_pipeline.py::TestGeneralizationToNewPhrasings`: 20 German in-scope
+  phrasings that do not appear verbatim in the dataset (enforced by a test) plus 2
+  out-of-scope requests; all 22 pass
+  (`pytest tests/test_pipeline.py -k Generalization`). The set is a smoke test, not a
+  statistical estimate: it is small, and two of its in-scope cases are within edit
+  distance 1 of a dataset entry.
+* Known evaluation caveat: the split is stratified by label, not by near-duplicate
+  cluster, so about 30% of the test examples (66/221) are within Damerau-Levenshtein
+  distance 2 of a training example (mostly generated typo variants of the same normal
+  example). The headline test accuracy is therefore optimistic; the safety metrics are
+  reported separately per split.
 * Committed artifacts: `models/metadata.json` (model, dataset hash, thresholds,
   environment, safety summary) and `models/metrics.json` (accuracy, macro-F1,
   per-class P/R/F1, confusion matrix, per-category gate decisions, safety summary).

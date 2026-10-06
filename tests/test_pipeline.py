@@ -236,7 +236,14 @@ class TestGeneralizationToNewPhrasings:
 
     They verify that the classifier generalizes to unseen German phrasings
     instead of memorizing the dataset. The set is deliberately kept small and
-    generic; it must never contain a text that also exists in the dataset.
+    generic; it must never contain a text that also exists in the dataset
+    (``test_no_case_is_part_of_the_dataset`` enforces exact-string disjointness).
+
+    Scope of this evidence: it is a smoke test, not a statistical estimate of
+    generalization. The set is small, and two of its in-scope cases
+    (``was ergibt 25 mal 4``, ``stelle bitte einen timer auf 6 minuten``) are
+    within edit distance 1 of a dataset entry, so near-duplicate robustness is
+    not what this suite measures.
     """
 
     CASES = [
