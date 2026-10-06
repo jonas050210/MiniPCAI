@@ -178,8 +178,11 @@ class Registry:
     def _from_dict(cls, data: dict, path: Path | None) -> Registry:
         if not isinstance(data, dict):
             raise RegistryError("registry root must be a JSON object")
-        if not isinstance(data.get("version"), int):
+        version = data.get("version")
+        if not isinstance(version, int) or isinstance(version, bool):
             raise RegistryError("registry must declare an integer 'version'")
+        if version < 1:
+            raise RegistryError("registry 'version' must be 1 or higher")
         unknown_keys = set(data) - {"version", *REGISTRY_SECTIONS}
         if unknown_keys:
             raise RegistryError(f"unknown registry keys: {sorted(unknown_keys)}")
@@ -211,6 +214,10 @@ class Registry:
                             f"'{entry.id}'; aliases must be unique across the registry"
                         )
                     seen_aliases[normalized] = entry.id
+                if "searchable" in raw and not isinstance(raw["searchable"], bool):
+                    raise RegistryError(
+                        f"entry '{entry.id}': 'searchable' must be a boolean"
+                    )
                 if raw.get("searchable") is True:
                     if section != "folders":
                         raise RegistryError(

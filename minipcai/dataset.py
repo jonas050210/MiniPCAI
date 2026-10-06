@@ -96,8 +96,12 @@ def load_dataset(path: Path | str) -> Dataset:
             raise DatasetError(f"line {line_number}: unknown label {row['label']!r}")
         if row["category"] not in CATEGORIES:
             raise DatasetError(f"line {line_number}: unknown category {row['category']!r}")
-        if not isinstance(row["version"], int):
+        if not isinstance(row["version"], int) or isinstance(row["version"], bool):
             raise DatasetError(f"line {line_number}: version must be an integer")
+        if not isinstance(row["id"], str) or not row["id"].strip():
+            raise DatasetError(f"line {line_number}: 'id' must be a non-empty string")
+        if not isinstance(row["text"], str):
+            raise DatasetError(f"line {line_number}: 'text' must be a string")
         if version is None:
             version = row["version"]
         elif version != row["version"]:

@@ -22,6 +22,7 @@ from minipcai.config import (
     CALC_MAX_EXPRESSION_LENGTH,
     CALC_MAX_LITERAL,
     CALC_MAX_NODES,
+    CALC_MAX_RESULT_DIGITS,
 )
 
 _ALLOWED_CHARS = frozenset("0123456789+-*/().% ")
@@ -36,6 +37,11 @@ _ALLOWED_BINOPS = (
     ast.Pow,
 )
 _ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
+
+# Results beyond this magnitude are refused instead of being converted to a
+# huge string (int -> str conversion is quadratic in CPython). ``10 ** digits``
+# is computed once at import time and keeps the check a single comparison.
+_MAX_RESULT_MAGNITUDE = 10 ** CALC_MAX_RESULT_DIGITS
 
 
 class CalcError(ValueError):
@@ -143,7 +149,12 @@ def format_number(value: float | int) -> str:
 def evaluate(expression: str) -> str:
     """Validate and evaluate an arithmetic expression, returning the result."""
     tree = validate(expression)
-    result = _eval(tree)
+    try:
+        result = _eval(tree)
+    except OverflowError as exc:  # e.g. a float power beyond the double range
+        raise CalcError("result is too large") from exc
+    if isinstance(result, int) and abs(result) >= _MAX_RESULT_MAGNITUDE:
+        raise CalcError(f"result has more than {CALC_MAX_RESULT_DIGITS} digits")
     if isinstance(result, float) and not math.isfinite(result):
         raise CalcError("result is not a finite number")
     return format_number(result)

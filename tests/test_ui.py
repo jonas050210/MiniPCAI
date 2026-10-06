@@ -67,3 +67,38 @@ class TestMainWindow:
         assert "Windows executor" in main_window.chat_view.toPlainText()
         main_window._dry_run_action.trigger()
         assert main_window._assistant.executor.mode == "dry-run"
+
+    def test_non_windows_switch_shows_hint(self, main_window, monkeypatch):
+        monkeypatch.setattr("minipcai.ui.app.sys.platform", "linux")
+        main_window._windows_action.trigger()
+        text = main_window.chat_view.toPlainText()
+        assert "not a Windows machine" in text
+
+    def test_status_bar_mentions_audit_log(self, main_window):
+        message = main_window.statusBar().currentMessage()
+        assert "Audit:" in message
+        assert str(main_window._assistant.audit.path) in message
+
+    def test_clear_chat(self, main_window):
+        main_window.input_edit.setText("öffne notepad")
+        main_window._send()
+        assert main_window.chat_view.toPlainText().strip()
+        main_window._clear_chat()
+        text = main_window.chat_view.toPlainText()
+        assert "öffne notepad" not in text
+        assert "Chat cleared." in text
+
+    def test_unwritable_audit_log_warns_at_startup(self, make_assistant, qapp, tmp_path):
+        from minipcai.ui.app import MainWindow
+
+        blocked = tmp_path / "audit_as_dir.jsonl"
+        blocked.mkdir()
+        assistant = make_assistant(audit_path=blocked)
+        window = MainWindow(
+            assistant=assistant, registry=assistant.registry, model=assistant.model
+        )
+        text = window.chat_view.toPlainText()
+        assert "audit log is not writable" in text
+
+    def test_writable_audit_log_does_not_warn(self, main_window):
+        assert "audit log is not writable" not in main_window.chat_view.toPlainText()

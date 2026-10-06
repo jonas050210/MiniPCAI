@@ -1,34 +1,34 @@
 {
   "model_format": "minipcai-sklearn-v1",
-  "created_at": "2026-10-06T17:29:10+00:00",
+  "created_at": "2026-10-06T18:37:46+00:00",
   "trained_on": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "python_version": "3.11.2",
   "sklearn_version": "1.9.1",
   "dataset": {
-    "path": "/home/user/MiniPCAI/data/intent_dataset.v1.jsonl",
-    "version": 1,
-    "sha256": "53db5c17e2565eeee2db539bac2e3f4edea88e9e1e7d5c69641930f770ab215f",
-    "n_examples": 841,
+    "path": "/home/user/MiniPCAI/data/intent_dataset.v2.jsonl",
+    "version": 2,
+    "sha256": "2298a1af6028b6f599c979a0d35bf14e1bc545499aeaeee9bda2b571da6f5d9e",
+    "n_examples": 1470,
     "label_counts": {
-      "open_app": 105,
-      "close_app": 81,
-      "open_url": 52,
-      "open_file": 54,
-      "open_folder": 47,
-      "find_file": 47,
-      "sys_cpu": 37,
-      "sys_ram": 41,
-      "sys_disk": 49,
-      "sys_summary": 57,
-      "calc": 57,
-      "timer": 60,
-      "unknown": 154
+      "open_app": 159,
+      "close_app": 123,
+      "open_url": 88,
+      "open_file": 93,
+      "open_folder": 89,
+      "find_file": 87,
+      "sys_cpu": 64,
+      "sys_ram": 74,
+      "sys_disk": 89,
+      "sys_summary": 85,
+      "calc": 89,
+      "timer": 95,
+      "unknown": 335
     },
     "category_counts": {
-      "normal": 525,
-      "typo": 162,
-      "unknown": 126,
-      "ambiguous": 28
+      "normal": 852,
+      "typo": 283,
+      "unknown": 240,
+      "ambiguous": 95
     }
   },
   "labels": [
@@ -53,7 +53,8 @@
         1,
         2
       ],
-      "sublinear_tf": true
+      "sublinear_tf": true,
+      "preprocessor": "minipcai.textutils.normalize_for_model"
     },
     "char": {
       "analyzer": "char_wb",
@@ -61,26 +62,31 @@
         2,
         4
       ],
-      "sublinear_tf": true
+      "sublinear_tf": true,
+      "preprocessor": "minipcai.textutils.normalize_for_model"
     }
   },
   "classifier": {
     "type": "LogisticRegression",
-    "C": 5.0,
+    "C": 10.0,
     "max_iter": 3000
   },
   "split": {
     "seed": 42,
-    "train": 588,
-    "val": 126,
-    "test": 127
+    "train": 1029,
+    "val": 220,
+    "test": 221
   },
   "thresholds": {
-    "min_confidence": 0.65,
-    "min_margin": 0.35
+    "min_confidence": 0.5,
+    "min_margin": 0.3
   },
   "metrics_summary": {
-    "test_accuracy": 0.9606,
-    "test_macro_f1": 0.9682
+    "test_accuracy": 0.9231,
+    "test_macro_f1": 0.9398
+  },
+  "safety_summary": {
+    "test_accepted_wrong_in_scope": 0,
+    "test_accepted_out_of_scope": 6
   }
 }

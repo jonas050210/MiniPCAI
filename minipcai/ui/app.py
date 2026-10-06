@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from minipcai import __version__
 from minipcai.actions import DryRunExecutor, WindowsExecutor
+from minipcai.audit import AuditError
 from minipcai.model import SklearnIntentClassifier
 from minipcai.pipeline import Assistant, AssistantResult, build_assistant
 from minipcai.registry import Registry, registry_summary
@@ -63,7 +64,18 @@ class MainWindow(QMainWindow):
             f"<br>{registry_summary(registry)} | "
             f"dataset v{model.metadata.get('dataset', {}).get('version', '?')}."
         )
+        self._check_audit_log()
         self.input_edit.setFocus()
+
+    def _check_audit_log(self) -> None:
+        """Warn early when the audit log cannot be written (fail-closed at runtime)."""
+        try:
+            self._assistant.audit.check_writable()
+        except AuditError as exc:
+            self._append_system_message(
+                f"Warning: the audit log is not writable ({exc}). Accepted requests "
+                "will be refused until this is fixed."
+            )
 
     # -- construction -----------------------------------------------------------
     def _build_menu(self) -> None:
@@ -79,6 +91,12 @@ class MainWindow(QMainWindow):
         self._windows_action.triggered.connect(lambda: self._switch_executor("windows"))
         executor_menu.addAction(self._dry_run_action)
         executor_menu.addAction(self._windows_action)
+
+        chat_menu = self.menuBar().addMenu("&Chat")
+        clear_action = QAction("&Clear chat", self)
+        clear_action.setShortcut("Ctrl+L")
+        clear_action.triggered.connect(self._clear_chat)
+        chat_menu.addAction(clear_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         about = QAction("&About MiniPCAI", self)
@@ -116,7 +134,7 @@ class MainWindow(QMainWindow):
         n_labels = len(self._model.labels)
         self.statusBar().showMessage(
             f"Model: {n_labels} intents | Executor: {executor.mode} | "
-            f"{registry_summary(self._registry)}"
+            f"{registry_summary(self._registry)} | Audit: {self._assistant.audit.path}"
         )
 
     # -- behavior ------------------------------------------------------------------
@@ -125,11 +143,20 @@ class MainWindow(QMainWindow):
         self._assistant.executor = (
             WindowsExecutor(audit=audit) if mode == "windows" else DryRunExecutor()
         )
-        self._append_system_message(
-            "Switched to the Windows executor: requests will now perform real actions."
-            if mode == "windows"
-            else "Switched to the dry-run executor: no real actions will be performed."
-        )
+        if mode == "windows":
+            self._append_system_message(
+                "Switched to the Windows executor: requests will now perform real actions."
+            )
+            if sys.platform != "win32":
+                self._append_system_message(
+                    "Note: this is not a Windows machine, so actions that need the "
+                    "operating system (open/close apps, files, folders) will be "
+                    "reported as unavailable. Informational actions still work."
+                )
+        else:
+            self._append_system_message(
+                "Switched to the dry-run executor: no real actions will be performed."
+            )
         self._refresh_status_bar()
 
     def _send(self) -> None:
@@ -159,6 +186,10 @@ class MainWindow(QMainWindow):
         self._pending_timers.append(timer)
 
     # -- chat rendering --------------------------------------------------------------
+    def _clear_chat(self) -> None:
+        self.chat_view.clear()
+        self._append_system_message("Chat cleared.")
+
     def _append(self, html_fragment: str) -> None:
         self.chat_view.append(html_fragment)
         self.chat_view.moveCursor(QTextCursor.MoveOperation.End)

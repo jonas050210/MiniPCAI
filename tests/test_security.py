@@ -89,11 +89,26 @@ class TestRegistryProvenance:
             "C:\\Windows\\System32\\cmd.exe",
             "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
             "C:\\Windows\\System32\\wscript.exe",
+            "C:\\Windows\\System32\\msdt.exe",
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell_ise.exe",
+            "C:\\Windows\\System32\\bash.exe",
+            "C:\\Windows\\System32\\fodhelper.exe",
+            "C:\\Windows\\System32\\control.exe",
+            "C:\\tools\\rundll32.exe",
         ],
     )
     def test_blocked_executables(self, registry_factory, executable):
         registry = Registry.load(registry_factory(apps=[
             {"id": "shell", "aliases": ["shell"], "executable": executable}
+        ]))
+        validator = SecurityValidator(registry)
+        with pytest.raises(SecurityError, match="blocked"):
+            validator.validate_plan(ActionPlan(intent="open_app", entry=registry.by_id("shell")))
+
+    def test_blocked_check_is_case_insensitive(self, registry_factory):
+        registry = Registry.load(registry_factory(apps=[
+            {"id": "shell", "aliases": ["shell"],
+             "executable": "C:\\Windows\\System32\\CMD.EXE"}
         ]))
         validator = SecurityValidator(registry)
         with pytest.raises(SecurityError, match="blocked"):

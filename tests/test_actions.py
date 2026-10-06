@@ -138,17 +138,25 @@ class TestWindowsExecutorGatedActions:
     """OS-integration actions are refused outside Windows (and mocked inside)."""
 
     def test_open_app_requires_windows(self, registry, monkeypatch):
-        calls: list[tuple] = []
+        calls: list[dict] = []
         monkeypatch.setattr(
             actions_module.subprocess, "Popen",
-            lambda argv, shell: calls.append((argv, shell)),
+            lambda argv, shell, cwd=None: calls.append(
+                {"argv": argv, "shell": shell, "cwd": cwd}
+            ),
         )
         if IS_WINDOWS:
             result = WindowsExecutor().execute(
                 _plan(registry, "open_app", "öffne notepad")
             )
             assert result.ok
-            assert calls == [([str(registry.by_id("notepad").path)], False)]
+            assert calls == [
+                {
+                    "argv": [str(registry.by_id("notepad").path)],
+                    "shell": False,
+                    "cwd": str(Path(registry.by_id("notepad").path).parent),
+                }
+            ]
         else:
             with pytest.raises(ExecutorUnavailable, match="requires Windows"):
                 WindowsExecutor().execute(_plan(registry, "open_app", "öffne notepad"))
@@ -180,6 +188,32 @@ class TestWindowsExecutorGatedActions:
                 WindowsExecutor().execute(
                     _plan(registry, "open_folder", "öffne die downloads")
                 )
+
+    def test_open_app_launch_failure_is_reported(self, registry, monkeypatch):
+        monkeypatch.setattr(actions_module, "_require_windows", lambda action: None)
+
+        def boom(argv, shell, cwd=None):
+            raise OSError("access denied")
+
+        monkeypatch.setattr(actions_module.subprocess, "Popen", boom)
+        result = WindowsExecutor().execute(
+            ActionPlan(intent="open_app", entry=registry.by_id("notepad"))
+        )
+        assert not result.ok
+        assert "Could not start" in result.summary
+
+    def test_system_drive_follows_environment(self, monkeypatch):
+        monkeypatch.setattr(actions_module.sys, "platform", "win32")
+        monkeypatch.setenv("SystemDrive", "D:")
+        assert actions_module._system_drive() == "D:\\"
+        monkeypatch.setenv("SystemDrive", "E:\\")
+        assert actions_module._system_drive() == "E:\\"
+        monkeypatch.delenv("SystemDrive")
+        assert actions_module._system_drive() == "C:\\"
+
+    def test_system_drive_posix(self, monkeypatch):
+        monkeypatch.setattr(actions_module.sys, "platform", "linux")
+        assert actions_module._system_drive() == "/"
 
     def test_open_app_missing_executable(self, registry, monkeypatch):
         monkeypatch.setattr(actions_module, "_require_windows", lambda action: None)
@@ -233,6 +267,15 @@ class TestWindowsExecutorCloseApp:
         assert terminated == [101, 102]
         assert result.details["terminated_pids"] == [101, 102]
 
+    def test_unresolvable_target_path_is_reported(self, registry, monkeypatch):
+        monkeypatch.setattr(actions_module, "_require_windows", lambda action: None)
+        monkeypatch.setattr(actions_module, "_safe_resolve", lambda value: None)
+        result = WindowsExecutor().execute(
+            _plan(registry, "close_app", "beende firefox")
+        )
+        assert not result.ok
+        assert "Could not resolve" in result.summary
+
     def test_no_running_process(self, registry, monkeypatch):
         monkeypatch.setattr(actions_module, "_require_windows", lambda action: None)
         monkeypatch.setattr(actions_module.psutil, "process_iter", lambda attrs=None: [])
@@ -264,6 +307,32 @@ class TestWindowsExecutorTimer:
         elapsed = [event for event in events if event["event"] == "timer_elapsed"]
         assert elapsed and elapsed[0]["request_id"] == "req-1"
         assert elapsed[0]["duration_seconds"] == 1
+
+
+class TestTimerBookkeeping:
+    def test_finished_timers_are_pruned(self):
+        class FakeTimer:
+            def __init__(self, alive: bool):
+                self._alive = alive
+
+            def is_alive(self) -> bool:
+                return self._alive
+
+        executor = WindowsExecutor()
+        executor._timers = [FakeTimer(False), FakeTimer(True), FakeTimer(False)]
+        executor._prune_timers()
+        assert len(executor._timers) == 1
+
+    def test_elapsed_real_timers_are_pruned(self):
+        executor = WindowsExecutor()
+        # A very short timer so the test stays fast; the executor itself does
+        # not enforce the timer bounds (the security validator does).
+        executor.execute(ActionPlan(intent="timer", duration_seconds=0.05,
+                                    request_id="req"))
+        assert len(executor._timers) == 1
+        executor._timers[0].join(timeout=2)
+        executor._prune_timers()
+        assert executor._timers == []
 
 
 class TestExecutorModeAttribute:

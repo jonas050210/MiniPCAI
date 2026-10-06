@@ -12,10 +12,25 @@ import re
 _WORD_RE = re.compile(r"[^\w\s]+", re.UNICODE)  # \w includes umlauts and sz in Python 3
 _SPACES_RE = re.compile(r"\s+")
 
+# Characters that survive model-side normalization: arithmetic must stay
+# recognizable ("was ist 12*4" must not become "was ist 12 4").
+_MODEL_KEEP_RE = re.compile(r"[^\w\s+\-*/%().]+", re.UNICODE)
+
 
 def normalize(text: str) -> str:
     """Lowercase, strip punctuation and collapse whitespace."""
     text = _WORD_RE.sub(" ", text.lower())
+    return _SPACES_RE.sub(" ", text).strip()
+
+
+def normalize_for_model(text: str) -> str:
+    """Like :func:`normalize`, but keeps arithmetic operators.
+
+    Used as the vectorizer preprocessor so that punctuation and casing
+    variants of a request map to the same features, while calculator requests
+    keep their operators for the character n-grams.
+    """
+    text = _MODEL_KEEP_RE.sub(" ", text.lower())
     return _SPACES_RE.sub(" ", text).strip()
 
 
@@ -44,7 +59,7 @@ _DECIMAL_COMMA_RE = re.compile(r"(\d),(\d)")
 
 
 def _replace_math_words(text: str) -> str:
-    text = f" {text.lower()} "
+    text = f" {_SPACES_RE.sub(' ', text.lower())} "
     for word, symbol in _MATH_WORD_OPERATIONS:
         text = text.replace(f" {word} ", f" {symbol} ")
     return text
@@ -80,23 +95,36 @@ def extract_math_expression(text: str) -> str | None:
 
 
 def damerau_levenshtein(a: str, b: str) -> int:
-    """Edit distance (insert/delete/substitute/swap) between two strings."""
+    """Damerau-Levenshtein distance (insert/delete/substitute/swap).
+
+    The adjacent-transposition term is what distinguishes this from the plain
+    Levenshtein distance: transposed characters ("notepda" -> "notepad") are
+    one of the most common typing mistakes and must cost 1, not 2.
+    """
     if a == b:
         return 0
     if not a or not b:
         return max(len(a), len(b))
+    previous_previous: list[int] = []
     previous = list(range(len(b) + 1))
     for index_a, char_a in enumerate(a, start=1):
         current = [index_a]
         for index_b, char_b in enumerate(b, start=1):
             cost = 0 if char_a == char_b else 1
-            current.append(
-                min(
-                    current[index_b - 1] + 1,        # insertion
-                    previous[index_b] + 1,           # deletion
-                    previous[index_b - 1] + cost,    # substitution
-                )
+            value = min(
+                current[index_b - 1] + 1,        # insertion
+                previous[index_b] + 1,           # deletion
+                previous[index_b - 1] + cost,    # substitution
             )
+            if (
+                index_a > 1
+                and index_b > 1
+                and char_a == b[index_b - 2]
+                and char_b == a[index_a - 2]
+            ):
+                value = min(value, previous_previous[index_b - 2] + 1)  # transposition
+            current.append(value)
+        previous_previous = previous
         previous = current
     return previous[-1]
 

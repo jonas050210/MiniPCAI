@@ -123,6 +123,31 @@ class TestLoading:
         with pytest.raises(RegistryError, match="only folders can be searchable"):
             Registry.load(path)
 
+    def test_zero_version_rejected(self, tmp_path):
+        path = tmp_path / "registry.json"
+        path.write_text(json.dumps({"version": 0}), encoding="utf-8")
+        with pytest.raises(RegistryError, match="1 or higher"):
+            Registry.load(path)
+
+    def test_boolean_version_rejected(self, tmp_path):
+        path = tmp_path / "registry.json"
+        path.write_text(json.dumps({"version": True}), encoding="utf-8")
+        with pytest.raises(RegistryError, match="integer"):
+            Registry.load(path)
+
+    def test_non_boolean_searchable_rejected(self, tmp_path):
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps({
+                "version": 1,
+                "folders": [{"id": "f", "aliases": ["f"], "path": "C:\\f",
+                             "searchable": "yes"}],
+            }),
+            encoding="utf-8",
+        )
+        with pytest.raises(RegistryError, match="must be a boolean"):
+            Registry.load(path)
+
     def test_env_prefixed_windows_path_accepted_without_env_var(self, tmp_path):
         path = tmp_path / "registry.json"
         path.write_text(

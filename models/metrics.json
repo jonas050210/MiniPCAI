@@ -1,41 +1,41 @@
 {
-  "created_at": "2026-10-06T17:29:10+00:00",
+  "created_at": "2026-10-06T18:37:46+00:00",
   "dataset": {
-    "path": "/home/user/MiniPCAI/data/intent_dataset.v1.jsonl",
-    "version": 1,
-    "sha256": "53db5c17e2565eeee2db539bac2e3f4edea88e9e1e7d5c69641930f770ab215f",
-    "n_examples": 841,
+    "path": "/home/user/MiniPCAI/data/intent_dataset.v2.jsonl",
+    "version": 2,
+    "sha256": "2298a1af6028b6f599c979a0d35bf14e1bc545499aeaeee9bda2b571da6f5d9e",
+    "n_examples": 1470,
     "label_counts": {
-      "open_app": 105,
-      "close_app": 81,
-      "open_url": 52,
-      "open_file": 54,
-      "open_folder": 47,
-      "find_file": 47,
-      "sys_cpu": 37,
-      "sys_ram": 41,
-      "sys_disk": 49,
-      "sys_summary": 57,
-      "calc": 57,
-      "timer": 60,
-      "unknown": 154
+      "open_app": 159,
+      "close_app": 123,
+      "open_url": 88,
+      "open_file": 93,
+      "open_folder": 89,
+      "find_file": 87,
+      "sys_cpu": 64,
+      "sys_ram": 74,
+      "sys_disk": 89,
+      "sys_summary": 85,
+      "calc": 89,
+      "timer": 95,
+      "unknown": 335
     },
     "category_counts": {
-      "normal": 525,
-      "typo": 162,
-      "unknown": 126,
-      "ambiguous": 28
+      "normal": 852,
+      "typo": 283,
+      "unknown": 240,
+      "ambiguous": 95
     }
   },
   "split": {
     "seed": 42,
-    "train": 588,
-    "val": 126,
-    "test": 127
+    "train": 1029,
+    "val": 220,
+    "test": 221
   },
   "thresholds": {
-    "min_confidence": 0.65,
-    "min_margin": 0.35
+    "min_confidence": 0.5,
+    "min_margin": 0.3
   },
   "threshold_calibration": {
     "grids": {
@@ -62,529 +62,499 @@
       "unknown_accept_penalty": 25.0
     },
     "chosen": {
-      "min_confidence": 0.65,
-      "min_margin": 0.35
+      "min_confidence": 0.5,
+      "min_margin": 0.3
     },
     "top_rows": [
       {
-        "min_confidence": 0.75,
-        "min_margin": 0.1,
-        "accepted_correct": 69,
-        "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
-      },
-      {
-        "min_confidence": 0.75,
-        "min_margin": 0.15,
-        "accepted_correct": 69,
-        "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
-      },
-      {
-        "min_confidence": 0.75,
-        "min_margin": 0.2,
-        "accepted_correct": 69,
-        "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
-      },
-      {
-        "min_confidence": 0.75,
-        "min_margin": 0.25,
-        "accepted_correct": 69,
-        "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
-      },
-      {
-        "min_confidence": 0.75,
+        "min_confidence": 0.35,
         "min_margin": 0.3,
-        "accepted_correct": 69,
+        "accepted_correct": 160,
         "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
+        "accepted_unknown": 4,
+        "rejected": 56,
+        "score": 0.2727
       },
       {
-        "min_confidence": 0.75,
-        "min_margin": 0.35,
-        "accepted_correct": 69,
+        "min_confidence": 0.4,
+        "min_margin": 0.3,
+        "accepted_correct": 160,
         "accepted_wrong": 0,
-        "accepted_unknown": 0,
-        "rejected": 57,
-        "score": 0.5476
+        "accepted_unknown": 4,
+        "rejected": 56,
+        "score": 0.2727
       },
       {
-        "min_confidence": 0.65,
+        "min_confidence": 0.45,
+        "min_margin": 0.3,
+        "accepted_correct": 160,
+        "accepted_wrong": 0,
+        "accepted_unknown": 4,
+        "rejected": 56,
+        "score": 0.2727
+      },
+      {
+        "min_confidence": 0.5,
+        "min_margin": 0.3,
+        "accepted_correct": 160,
+        "accepted_wrong": 0,
+        "accepted_unknown": 4,
+        "rejected": 56,
+        "score": 0.2727
+      },
+      {
+        "min_confidence": 0.55,
+        "min_margin": 0.3,
+        "accepted_correct": 159,
+        "accepted_wrong": 0,
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
+      },
+      {
+        "min_confidence": 0.6,
         "min_margin": 0.1,
-        "accepted_correct": 81,
+        "accepted_correct": 159,
         "accepted_wrong": 0,
-        "accepted_unknown": 1,
-        "rejected": 44,
-        "score": 0.4444
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
       },
       {
-        "min_confidence": 0.65,
+        "min_confidence": 0.6,
         "min_margin": 0.15,
-        "accepted_correct": 81,
+        "accepted_correct": 159,
         "accepted_wrong": 0,
-        "accepted_unknown": 1,
-        "rejected": 44,
-        "score": 0.4444
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
       },
       {
-        "min_confidence": 0.65,
+        "min_confidence": 0.6,
         "min_margin": 0.2,
-        "accepted_correct": 81,
+        "accepted_correct": 159,
         "accepted_wrong": 0,
-        "accepted_unknown": 1,
-        "rejected": 44,
-        "score": 0.4444
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
       },
       {
-        "min_confidence": 0.65,
+        "min_confidence": 0.6,
         "min_margin": 0.25,
-        "accepted_correct": 81,
+        "accepted_correct": 159,
         "accepted_wrong": 0,
-        "accepted_unknown": 1,
-        "rejected": 44,
-        "score": 0.4444
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
+      },
+      {
+        "min_confidence": 0.6,
+        "min_margin": 0.3,
+        "accepted_correct": 159,
+        "accepted_wrong": 0,
+        "accepted_unknown": 4,
+        "rejected": 57,
+        "score": 0.2682
       }
     ]
   },
   "validation": {
-    "n": 126,
-    "accuracy": 0.9127,
-    "macro_f1": 0.9327,
+    "n": 220,
+    "accuracy": 0.9409,
+    "macro_f1": 0.9506,
     "per_class": {
       "calc": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 8
+        "precision": 0.9231,
+        "recall": 0.8571,
+        "f1": 0.8889,
+        "support": 14
       },
       "close_app": {
-        "precision": 0.9167,
-        "recall": 0.9167,
-        "f1": 0.9167,
-        "support": 12
+        "precision": 1.0,
+        "recall": 0.9444,
+        "f1": 0.9714,
+        "support": 18
       },
       "find_file": {
+        "precision": 0.8125,
+        "recall": 1.0,
+        "f1": 0.8966,
+        "support": 13
+      },
+      "open_app": {
+        "precision": 0.96,
+        "recall": 1.0,
+        "f1": 0.9796,
+        "support": 24
+      },
+      "open_file": {
+        "precision": 0.9286,
+        "recall": 0.9286,
+        "f1": 0.9286,
+        "support": 14
+      },
+      "open_folder": {
+        "precision": 1.0,
+        "recall": 0.9231,
+        "f1": 0.96,
+        "support": 13
+      },
+      "open_url": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 7
-      },
-      "open_app": {
-        "precision": 0.8421,
-        "recall": 1.0,
-        "f1": 0.9143,
-        "support": 16
-      },
-      "open_file": {
-        "precision": 0.7273,
-        "recall": 1.0,
-        "f1": 0.8421,
-        "support": 8
-      },
-      "open_folder": {
-        "precision": 0.875,
-        "recall": 1.0,
-        "f1": 0.9333,
-        "support": 7
-      },
-      "open_url": {
-        "precision": 0.875,
-        "recall": 0.875,
-        "f1": 0.875,
-        "support": 8
+        "support": 13
       },
       "sys_cpu": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 6
+        "support": 10
       },
       "sys_disk": {
-        "precision": 1.0,
-        "recall": 0.875,
-        "f1": 0.9333,
-        "support": 8
-      },
-      "sys_ram": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 6
-      },
-      "sys_summary": {
-        "precision": 0.8889,
-        "recall": 1.0,
-        "f1": 0.9412,
-        "support": 8
-      },
-      "timer": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 9
-      },
-      "unknown": {
-        "precision": 0.9375,
-        "recall": 0.6522,
-        "f1": 0.7692,
-        "support": 23
-      }
-    },
-    "confusion": {
-      "calc": {
-        "calc": 8,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "close_app": {
-        "calc": 0,
-        "close_app": 11,
-        "find_file": 0,
-        "open_app": 1,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "find_file": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 7,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_app": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 16,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_file": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 8,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_folder": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 7,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_url": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 1,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 7,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_cpu": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 6,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_disk": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 7,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 1
-      },
-      "sys_ram": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 6,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_summary": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 8,
-        "timer": 0,
-        "unknown": 0
-      },
-      "timer": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 9,
-        "unknown": 0
-      },
-      "unknown": {
-        "calc": 0,
-        "close_app": 1,
-        "find_file": 0,
-        "open_app": 1,
-        "open_file": 3,
-        "open_folder": 1,
-        "open_url": 1,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 1,
-        "timer": 0,
-        "unknown": 15
-      }
-    },
-    "category_decisions": {
-      "normal": {
-        "n": 79,
-        "accepted_correct": 62,
-        "accepted_wrong": 0,
-        "rejected": 17
-      },
-      "typo": {
-        "n": 24,
-        "accepted_correct": 19,
-        "accepted_wrong": 0,
-        "rejected": 5
-      },
-      "unknown": {
-        "n": 19,
-        "accepted_correct": 0,
-        "accepted_wrong": 0,
-        "rejected": 19
-      },
-      "ambiguous": {
-        "n": 4,
-        "accepted_correct": 0,
-        "accepted_wrong": 1,
-        "rejected": 3
-      }
-    }
-  },
-  "test": {
-    "n": 127,
-    "accuracy": 0.9606,
-    "macro_f1": 0.9682,
-    "per_class": {
-      "calc": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 9
-      },
-      "close_app": {
         "precision": 0.9286,
         "recall": 1.0,
         "f1": 0.963,
         "support": 13
       },
-      "find_file": {
-        "precision": 1.0,
-        "recall": 0.8571,
-        "f1": 0.9231,
-        "support": 7
-      },
-      "open_app": {
-        "precision": 0.9412,
-        "recall": 1.0,
-        "f1": 0.9697,
-        "support": 16
-      },
-      "open_file": {
-        "precision": 1.0,
-        "recall": 0.875,
-        "f1": 0.9333,
-        "support": 8
-      },
-      "open_folder": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 7
-      },
-      "open_url": {
-        "precision": 0.8889,
-        "recall": 1.0,
-        "f1": 0.9412,
-        "support": 8
-      },
-      "sys_cpu": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 5
-      },
-      "sys_disk": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 7
-      },
       "sys_ram": {
-        "precision": 1.0,
+        "precision": 0.9167,
         "recall": 1.0,
-        "f1": 1.0,
-        "support": 6
+        "f1": 0.9565,
+        "support": 11
       },
       "sys_summary": {
+        "precision": 0.9286,
+        "recall": 1.0,
+        "f1": 0.963,
+        "support": 13
+      },
+      "timer": {
+        "precision": 0.9333,
+        "recall": 1.0,
+        "f1": 0.9655,
+        "support": 14
+      },
+      "unknown": {
+        "precision": 0.9333,
+        "recall": 0.84,
+        "f1": 0.8842,
+        "support": 50
+      }
+    },
+    "confusion": {
+      "calc": {
+        "calc": 12,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 2
+      },
+      "close_app": {
+        "calc": 0,
+        "close_app": 17,
+        "find_file": 0,
+        "open_app": 1,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "find_file": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 13,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "open_app": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 24,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "open_file": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 13,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 1
+      },
+      "open_folder": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 1,
+        "open_folder": 12,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "open_url": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 13,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "sys_cpu": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 10,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "sys_disk": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 13,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "sys_ram": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 11,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0
+      },
+      "sys_summary": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 13,
+        "timer": 0,
+        "unknown": 0
+      },
+      "timer": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 14,
+        "unknown": 0
+      },
+      "unknown": {
+        "calc": 1,
+        "close_app": 0,
+        "find_file": 3,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 1,
+        "sys_ram": 1,
+        "sys_summary": 1,
+        "timer": 1,
+        "unknown": 42
+      }
+    },
+    "category_decisions": {
+      "normal": {
+        "n": 123,
+        "accepted_correct": 119,
+        "accepted_wrong": 0,
+        "rejected": 4
+      },
+      "typo": {
+        "n": 47,
+        "accepted_correct": 41,
+        "accepted_wrong": 0,
+        "rejected": 6
+      },
+      "unknown": {
+        "n": 34,
+        "accepted_correct": 0,
+        "accepted_wrong": 0,
+        "rejected": 34
+      },
+      "ambiguous": {
+        "n": 16,
+        "accepted_correct": 0,
+        "accepted_wrong": 4,
+        "rejected": 12
+      }
+    }
+  },
+  "test": {
+    "n": 221,
+    "accuracy": 0.9231,
+    "macro_f1": 0.9398,
+    "per_class": {
+      "calc": {
+        "precision": 0.9231,
+        "recall": 0.9231,
+        "f1": 0.9231,
+        "support": 13
+      },
+      "close_app": {
+        "precision": 0.9444,
+        "recall": 0.8947,
+        "f1": 0.9189,
+        "support": 19
+      },
+      "find_file": {
+        "precision": 0.9231,
+        "recall": 0.9231,
+        "f1": 0.9231,
+        "support": 13
+      },
+      "open_app": {
+        "precision": 0.8846,
+        "recall": 0.9583,
+        "f1": 0.92,
+        "support": 24
+      },
+      "open_file": {
+        "precision": 0.9333,
+        "recall": 1.0,
+        "f1": 0.9655,
+        "support": 14
+      },
+      "open_folder": {
+        "precision": 0.9333,
+        "recall": 1.0,
+        "f1": 0.9655,
+        "support": 14
+      },
+      "open_url": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 13
+      },
+      "sys_cpu": {
         "precision": 0.9,
         "recall": 1.0,
         "f1": 0.9474,
         "support": 9
       },
-      "timer": {
-        "precision": 1.0,
+      "sys_disk": {
+        "precision": 0.9333,
         "recall": 1.0,
-        "f1": 1.0,
-        "support": 9
+        "f1": 0.9655,
+        "support": 14
+      },
+      "sys_ram": {
+        "precision": 0.9167,
+        "recall": 1.0,
+        "f1": 0.9565,
+        "support": 11
+      },
+      "sys_summary": {
+        "precision": 0.9286,
+        "recall": 1.0,
+        "f1": 0.963,
+        "support": 13
+      },
+      "timer": {
+        "precision": 0.875,
+        "recall": 1.0,
+        "f1": 0.9333,
+        "support": 14
       },
       "unknown": {
-        "precision": 0.9524,
-        "recall": 0.8696,
-        "f1": 0.9091,
-        "support": 23
+        "precision": 0.9268,
+        "recall": 0.76,
+        "f1": 0.8352,
+        "support": 50
       }
     },
     "confusion": {
       "calc": {
-        "calc": 9,
+        "calc": 12,
         "close_app": 0,
         "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "close_app": {
-        "calc": 0,
-        "close_app": 13,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "find_file": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 6,
         "open_app": 0,
         "open_file": 0,
         "open_folder": 0,
@@ -596,12 +566,27 @@
         "timer": 0,
         "unknown": 1
       },
-      "open_app": {
+      "close_app": {
+        "calc": 0,
+        "close_app": 17,
+        "find_file": 0,
+        "open_app": 1,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 1
+      },
+      "find_file": {
         "calc": 0,
         "close_app": 0,
-        "find_file": 0,
-        "open_app": 16,
-        "open_file": 0,
+        "find_file": 12,
+        "open_app": 0,
+        "open_file": 1,
         "open_folder": 0,
         "open_url": 0,
         "sys_cpu": 0,
@@ -611,18 +596,33 @@
         "timer": 0,
         "unknown": 0
       },
-      "open_file": {
+      "open_app": {
         "calc": 0,
         "close_app": 0,
         "find_file": 0,
-        "open_app": 0,
-        "open_file": 7,
+        "open_app": 23,
+        "open_file": 0,
         "open_folder": 0,
         "open_url": 0,
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
-        "sys_summary": 1,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 1
+      },
+      "open_file": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 14,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
         "timer": 0,
         "unknown": 0
       },
@@ -632,7 +632,7 @@
         "find_file": 0,
         "open_app": 0,
         "open_file": 0,
-        "open_folder": 7,
+        "open_folder": 14,
         "open_url": 0,
         "sys_cpu": 0,
         "sys_disk": 0,
@@ -648,7 +648,7 @@
         "open_app": 0,
         "open_file": 0,
         "open_folder": 0,
-        "open_url": 8,
+        "open_url": 13,
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
@@ -664,7 +664,7 @@
         "open_file": 0,
         "open_folder": 0,
         "open_url": 0,
-        "sys_cpu": 5,
+        "sys_cpu": 9,
         "sys_disk": 0,
         "sys_ram": 0,
         "sys_summary": 0,
@@ -680,7 +680,7 @@
         "open_folder": 0,
         "open_url": 0,
         "sys_cpu": 0,
-        "sys_disk": 7,
+        "sys_disk": 14,
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
@@ -696,7 +696,7 @@
         "open_url": 0,
         "sys_cpu": 0,
         "sys_disk": 0,
-        "sys_ram": 6,
+        "sys_ram": 11,
         "sys_summary": 0,
         "timer": 0,
         "unknown": 0
@@ -712,7 +712,7 @@
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
-        "sys_summary": 9,
+        "sys_summary": 13,
         "timer": 0,
         "unknown": 0
       },
@@ -728,50 +728,64 @@
         "sys_disk": 0,
         "sys_ram": 0,
         "sys_summary": 0,
-        "timer": 9,
+        "timer": 14,
         "unknown": 0
       },
       "unknown": {
-        "calc": 0,
+        "calc": 1,
         "close_app": 1,
-        "find_file": 0,
-        "open_app": 1,
+        "find_file": 1,
+        "open_app": 2,
         "open_file": 0,
-        "open_folder": 0,
-        "open_url": 1,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 20
+        "open_folder": 1,
+        "open_url": 0,
+        "sys_cpu": 1,
+        "sys_disk": 1,
+        "sys_ram": 1,
+        "sys_summary": 1,
+        "timer": 2,
+        "unknown": 38
       }
     },
     "category_decisions": {
       "normal": {
-        "n": 74,
-        "accepted_correct": 60,
+        "n": 129,
+        "accepted_correct": 123,
         "accepted_wrong": 0,
-        "rejected": 14
+        "rejected": 6
       },
       "typo": {
-        "n": 30,
-        "accepted_correct": 23,
+        "n": 42,
+        "accepted_correct": 39,
         "accepted_wrong": 0,
-        "rejected": 7
+        "rejected": 3
       },
       "unknown": {
-        "n": 21,
+        "n": 34,
         "accepted_correct": 0,
-        "accepted_wrong": 0,
-        "rejected": 21
+        "accepted_wrong": 3,
+        "rejected": 31
       },
       "ambiguous": {
-        "n": 2,
+        "n": 16,
         "accepted_correct": 0,
-        "accepted_wrong": 2,
-        "rejected": 0
+        "accepted_wrong": 3,
+        "rejected": 13
       }
+    }
+  },
+  "safety": {
+    "validation": {
+      "accepted_wrong_in_scope": 0,
+      "accepted_out_of_scope": 4,
+      "rejected": 56,
+      "n": 220
+    },
+    "test": {
+      "accepted_wrong_in_scope": 0,
+      "accepted_out_of_scope": 6,
+      "rejected": 53,
+      "n": 221
     }
   }
 }
