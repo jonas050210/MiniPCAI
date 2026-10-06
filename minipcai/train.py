@@ -10,8 +10,14 @@ Design notes:
 
 * stratified 70/15/15 train/validation/test split with a fixed seed;
 * thresholds (``min_confidence``, ``min_margin``) are calibrated on the
-  validation split by maximizing accepted-and-correct decisions while heavily
-  penalizing accepted-but-wrong ones;
+  validation split. Grid pairs that satisfy the preferred safety bounds (no
+  wrongly accepted in-scope request, at most one unknown/ambiguous accept) are
+  preferred, taking the one with the most accepted-and-correct decisions. When
+  no pair satisfies the bounds - which is the case for the v2 validation split,
+  where the lowest reachable ``accepted_unknown`` is 4 - selection falls back
+  to the penalty score, which heavily weights accepted-but-wrong and
+  accepted-unknown decisions. The chosen row, including its
+  ``accepted_unknown`` count, is recorded in ``metrics.json``;
 * the test split is evaluated once, with per-class precision/recall/F1, a
   confusion matrix and per-category (normal/typo/unknown/ambiguous) decision
   statistics, including the safety-relevant "accepted although the label is
@@ -51,10 +57,15 @@ TEST_FRACTION = 0.15
 
 _CONFIDENCE_GRID = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75)
 _MARGIN_GRID = (0.10, 0.15, 0.20, 0.25, 0.30, 0.35)
-# Safety bounds for threshold selection on the validation split: no wrongly
-# accepted request with a valid label at all, and at most one unknown/
+# Preferred safety bounds for threshold selection on the validation split: no
+# wrongly accepted request with a valid label at all, and at most one unknown/
 # ambiguous example accepted (such accepts remain runtime-safe because target
 # resolution rejects target-less requests, but the gates should stay cautious).
+# These bounds are a preference, not a guarantee: on hard data no grid pair may
+# satisfy them (for the v2 validation split the lowest reachable
+# accepted_unknown is 4), in which case the selection below falls back to the
+# penalty score and reports the chosen row's accepted_unknown count in
+# metrics.json.
 _MAX_WRONG_ACCEPTS = 0
 _MAX_UNKNOWN_ACCEPTS = 1
 # Fallback penalties (used only when no threshold pair satisfies the bounds).
@@ -141,9 +152,10 @@ def calibrate_thresholds(
                     "score": round(score, 4),
                 }
             )
-    # Choose the most permissive thresholds that respect the safety bounds on
-    # the validation split; fall back to the penalty score when nothing
-    # qualifies. Ties are broken towards stricter gates.
+    # Preferred rule: among the grid pairs that satisfy the safety bounds above,
+    # take the one accepting the most correct requests. If no pair satisfies
+    # them (possible on hard data, e.g. the v2 validation split), fall back to
+    # the penalty score. Ties are broken towards stricter gates.
     eligible = [
         row
         for row in table
