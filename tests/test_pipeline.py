@@ -233,13 +233,19 @@ class TestAuditTrail:
 
 class TestWindowsExecutorMode:
     def test_os_action_requires_windows(self, make_assistant):
+        import sys
+
         assistant = make_assistant(executor_mode="windows")
         result = assistant.handle("öffne notepad")
-        if result.status != "ok":  # on non-Windows test machines
+        if sys.platform == "win32":
+            # genuinely on Windows: the request must have reached the executor
+            # (the fixture "application" is a placeholder file, so launching it
+            # may still fail - that is an execution result, not a refusal)
+            assert result.action_summary
+            assert result.status in {"ok", "error"}
+        else:
             assert result.status == "error"
             assert result.reason == "executor_unavailable"
-        else:  # genuinely on Windows: the action must have run for real
-            assert result.action_summary
 
     def test_sys_info_works_with_windows_executor(self, make_assistant):
         assistant = make_assistant(executor_mode="windows")

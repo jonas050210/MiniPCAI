@@ -49,7 +49,7 @@ from urllib.parse import urlparse
 from minipcai.intents import REGISTRY_SECTIONS
 from minipcai.policy import (
     SecurityPolicy,
-    effective_policy,
+    default_policy,
     executable_name,
     expand_env,
 )
@@ -161,7 +161,7 @@ class Registry:
         self.version = version
         self._searchable_ids = searchable_ids
         self.path = path
-        self.policy = policy or effective_policy()
+        self.policy = policy or default_policy()
         self._by_id = {entry.id: entry for entry in entries}
         # section -> tuple of (folded alias, entry), longest alias first
         index: dict[str, list[tuple[str, RegistryEntry]]] = {
@@ -269,7 +269,7 @@ class Registry:
         check_files: bool = False,
     ) -> Registry:
         """Validate an in-memory registry document (used by editors/tests)."""
-        registry = cls._from_dict(data, path, policy or effective_policy())
+        registry = cls._from_dict(data, path, policy or default_policy())
         if check_files:
             problems = registry.missing_targets()
             if problems:

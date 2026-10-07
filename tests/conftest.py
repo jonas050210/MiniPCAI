@@ -67,6 +67,10 @@ def registry_factory(tmp_path: Path):
         firefox = apps_dir / "firefox.exe"
         for exe in (notepad, firefox):
             exe.touch(exist_ok=True)
+        # the opener target exists as well: the Windows executor checks for the
+        # path before handing it to the shell. ``invoice`` deliberately stays
+        # missing so that the "not usable on this machine" paths keep coverage.
+        (documents / "notes.txt").touch(exist_ok=True)
         data = {
             "version": 1,
             "apps": [

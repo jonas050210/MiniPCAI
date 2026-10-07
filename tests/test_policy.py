@@ -100,6 +100,11 @@ class TestTrustedRoots:
 
     def test_posix_paths_are_not_judged(self, tmp_path):
         policy = default_policy()
+        # POSIX-shaped paths carry no Windows drive/UNC information and are not
+        # judged (the Windows executor refuses to act there anyway).
+        assert policy.is_trusted_app_path("/usr/local/bin/app")
+        # The test suite approves its own temporary directory via the
+        # environment, which is what makes Windows-shaped fixture paths usable.
         assert policy.is_trusted_app_path(str(tmp_path / "app.exe"))
 
     def test_allow_untrusted_copy(self):
@@ -167,7 +172,7 @@ class TestPolicyFromEnv:
         assert policy.allowed_file_extensions is None
 
 
-class TestEffectivePolicy:
+class TestDefaultPolicyResolution:
     """Components that construct their own policy must agree with the CLI.
 
     Regression guard for the Windows CI failure: ``Registry.load(path)`` without
@@ -176,7 +181,7 @@ class TestEffectivePolicy:
     """
 
     def test_without_escape_hatches_it_is_the_strict_default(self, monkeypatch):
-        from minipcai.policy import DEFAULT_POLICY, effective_policy
+        from minipcai.policy import DEFAULT_POLICY
 
         for name in (
             "MINIPCAI_ALLOW_UNTRUSTED_APPS",
@@ -184,7 +189,14 @@ class TestEffectivePolicy:
             "MINIPCAI_EXTRA_TRUSTED_ROOTS",
         ):
             monkeypatch.delenv(name, raising=False)
-        assert effective_policy() is DEFAULT_POLICY
+        assert default_policy() is DEFAULT_POLICY
+        assert default_policy({}) is DEFAULT_POLICY
+
+    def test_with_an_extra_root_it_is_not_the_strict_default(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", str(tmp_path))
+        policy = default_policy()
+        assert policy is not DEFAULT_POLICY
+        assert policy.is_trusted_app_path(str(tmp_path / "app.exe"))
 
     def test_registry_load_honours_the_extra_root(self, tmp_path, monkeypatch):
         from minipcai.registry import Registry

@@ -36,7 +36,7 @@ from minipcai.config import (
 from minipcai.intents import ACTION_INTENTS, TARGETED_INTENTS
 from minipcai.policy import (
     SecurityPolicy,
-    effective_policy,
+    default_policy,
     executable_name,
     expand_env,
 )
@@ -103,7 +103,7 @@ class SecurityValidator:
 
     def __init__(self, registry: Registry, policy: SecurityPolicy | None = None):
         self._registry = registry
-        self._policy = policy or registry.policy or effective_policy()
+        self._policy = policy or registry.policy or default_policy()
 
     @property
     def registry(self) -> Registry:

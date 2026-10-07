@@ -344,18 +344,13 @@ class SecurityPolicy:
 DEFAULT_POLICY = SecurityPolicy()
 
 
-def default_policy() -> SecurityPolicy:
-    """The strict, built-in policy."""
-    return DEFAULT_POLICY
+def default_policy(environ: dict[str, str] | None = None) -> SecurityPolicy:
+    """The policy that applies when a component does not get one passed in.
 
-
-def effective_policy(environ: dict[str, str] | None = None) -> SecurityPolicy:
-    """The policy a component should use when the caller did not pass one.
-
-    Identical to the strict default *unless* one of the documented
-    ``MINIPCAI_*`` escape hatches is set in the environment; that keeps the
-    CLI, the desktop UI and direct library calls (``Registry.load(path)``)
-    consistent instead of having each entry point decide on its own.
+    It is the strict built-in policy (:data:`DEFAULT_POLICY`) unless one of the
+    documented ``MINIPCAI_*`` escape hatches is set. Resolving this in one place
+    keeps the CLI, the desktop UI and direct library calls (``Registry.load``)
+    consistent instead of letting every entry point decide for itself.
     """
     return policy_from_env(environ)
 
