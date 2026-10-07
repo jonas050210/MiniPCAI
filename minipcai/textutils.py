@@ -96,6 +96,82 @@ _MATH_WORD_OPERATIONS: tuple[tuple[str, str], ...] = (
     ("quadrat", "**2"),
 )
 
+# ---------------------------------------------------------------------------
+# German number words (for calculations like "zwanzig plus dreißig")
+# ---------------------------------------------------------------------------
+
+_NUMBER_WORD_UNITS: dict[str, int] = {
+    "null": 0, "eins": 1, "ein": 1, "eine": 1, "einen": 1, "einem": 1, "einer": 1,
+    "zwei": 2, "zwo": 2, "drei": 3, "vier": 4, "fünf": 5, "fuenf": 5,
+    "sechs": 6, "sieben": 7, "acht": 8, "neun": 9,
+}
+_NUMBER_WORD_SPECIALS: dict[str, int] = {
+    "zehn": 10, "elf": 11, "zwölf": 12, "zwoelf": 12, "dreizehn": 13,
+    "vierzehn": 14, "fünfzehn": 15, "fuenfzehn": 15, "sechzehn": 16,
+    "siebzehn": 17, "achtzehn": 18, "neunzehn": 19,
+}
+_NUMBER_WORD_TENS: dict[str, int] = {
+    "zwanzig": 20, "dreißig": 30, "dreissig": 30, "vierzig": 40,
+    "fünfzig": 50, "fuenfzig": 50, "sechzig": 60, "siebzig": 70,
+    "achtzig": 80, "neunzig": 90,
+}
+_NUMBER_WORD_SCALES: dict[str, int] = {"hundert": 100, "tausend": 1000}
+
+
+def parse_number_word(word: str) -> int | None:
+    """Parse a German number word (up to a few thousand) into an integer.
+
+    Handles the simple forms, the inverted compounds ("fünfundzwanzig"),
+    "hundert"/"tausend" multipliers and their combinations such as
+    "zweihundertfünfzig". Returns ``None`` for anything else.
+    """
+    word = fold(word.strip().lower())
+    if not word:
+        return None
+    flat = {k: v for k, v in
+            {**_NUMBER_WORD_UNITS, **_NUMBER_WORD_SPECIALS, **_NUMBER_WORD_TENS}.items()}
+    flat = {fold(k): v for k, v in flat.items()}
+    scales = {fold(k): v for k, v in _NUMBER_WORD_SCALES.items()}
+    if word in flat:
+        return flat[word]
+
+    total = 0
+    rest = word
+    for scale_word, factor in sorted(scales.items(), key=lambda item: -len(item[0])):
+        if scale_word in rest:
+            prefix, _, suffix = rest.partition(scale_word)
+            multiplier = 1
+            if prefix:
+                if prefix in flat:
+                    multiplier = flat[prefix]
+                elif prefix == "ein" or prefix == "eine":
+                    multiplier = 1
+                else:
+                    return None
+            total += multiplier * factor
+            rest = suffix
+    if rest:
+        if rest in flat:
+            total += flat[rest]
+        elif "und" in rest:  # "fünfundzwanzig"
+            left, _, right = rest.partition("und")
+            if left in flat and right in flat:
+                total += flat[left] + flat[right]
+            else:
+                return None
+        else:
+            return None
+    return total if total else None
+
+
+def _words_to_digits(text: str) -> str:
+    """Replace German number words with digits (used for calculations only)."""
+    words = []
+    for token in text.split():
+        parsed = parse_number_word(token.strip(".,!?"))
+        words.append(str(parsed) if parsed is not None else token)
+    return " ".join(words)
+
 # A "math run" is a maximal sequence of digits, operators, dots, parens, spaces.
 _MATH_RUN_RE = re.compile(r"[\d\s+\-*/().%]+")
 _DECIMAL_COMMA_RE = re.compile(r"(\d),(\d)")
@@ -108,14 +184,74 @@ def _replace_math_words(text: str) -> str:
     return text
 
 
+#: "20 prozent von 80" / "20% von 80" / "20 % von 80"
+_PERCENT_RE = re.compile(
+    r"(?P<percent>\d+(?:\.\d+)?)\s*(?:%|prozent)\s*"
+    r"(?:(?:von|vom)\s*(?P<base>\d+(?:\.\d+)?))?"
+)
+#: "addiere 5 und 3", "subtrahiere 3 von 5", "multipliziere 5 mit 3"
+_OPERATION_VERB_RES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\b(?:addiere|summiere)\s+(\d+(?:\.\d+)?)\s+und\s+(\d+(?:\.\d+)?)"),
+     r"(\1 + \2)"),
+    (re.compile(r"\b(?:subtrahiere)\s+(\d+(?:\.\d+)?)\s+von\s+(\d+(?:\.\d+)?)"),
+     r"(\2 - \1)"),
+    (re.compile(r"\b(?:multipliziere|vervielfache)\s+(\d+(?:\.\d+)?)\s+mit\s+(\d+(?:\.\d+)?)"),
+     r"(\1 * \2)"),
+    (re.compile(r"\b(?:teile)\s+(\d+(?:\.\d+)?)\s+durch\s+(\d+(?:\.\d+)?)"),
+     r"(\1 / \2)"),
+)
+#: currency and filler words that carry no meaning for the calculation
+_MATH_NOISE_RE = re.compile(r"\b(?:euro|eur|cent|cents|bitte|mal\s+eben)\b")
+#: "die hälfte von 90" -> "(90 * 0.5)"; the optional article is consumed too,
+#: because "ein viertel von 80" has already become "1 viertel von 80".
+_FRACTION_OF_RE = re.compile(
+    r"\b(?:die\s+|der\s+|ein(?:e|en)?\s+|1\s+)?"
+    r"(?P<fraction>hälfte|haelfte|drittel|viertel)\s+von\s+(?P<base>\d+(?:\.\d+)?)"
+)
+_FRACTION_FACTORS: dict[str, str] = {
+    "hälfte": "0.5",
+    "haelfte": "0.5",
+    "viertel": "0.25",
+}
+
+
+def _rewrite_fractions(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        base = match.group("base")
+        fraction = match.group("fraction")
+        if fraction == "drittel":
+            return f"({base} / 3)"
+        return f"({base} * {_FRACTION_FACTORS[fraction]})"
+    return _FRACTION_OF_RE.sub(replace, text)
+
+
+def _rewrite_percentages(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        percent = match.group("percent")
+        base = match.group("base")
+        if base:
+            return f"({percent} * {base} / 100)"
+        return f"({percent} / 100)"
+    return _PERCENT_RE.sub(replace, text)
+
+
 def extract_math_expression(text: str) -> str | None:
     """Extract an arithmetic expression from a German request.
 
-    Returns ``None`` when the text contains no usable expression. The returned
-    string still has to pass the strict AST validation in ``calc_engine``.
+    Understands digits, German number words, the four operations in words,
+    percentages ("15 prozent von 80"), fractions ("die hälfte von 90") and
+    drops currency words. Returns ``None`` when the text contains no usable
+    expression; the result still has to pass the strict AST validation in
+    ``calc_engine``.
     """
-    prepared = _DECIMAL_COMMA_RE.sub(r"\1.\2", text)
+    prepared = _DECIMAL_COMMA_RE.sub(r"\1.\2", text.lower())
+    prepared = _words_to_digits(prepared)
+    for pattern, replacement in _OPERATION_VERB_RES:
+        prepared = pattern.sub(replacement, prepared)
+    prepared = _rewrite_percentages(prepared)
+    prepared = _rewrite_fractions(prepared)
     prepared = _replace_math_words(prepared)
+    prepared = _MATH_NOISE_RE.sub(" ", prepared)
     best: str | None = None
     for run in _MATH_RUN_RE.findall(prepared):
         candidate = run.strip()

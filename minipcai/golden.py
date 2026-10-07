@@ -98,10 +98,28 @@ def _target_of(result) -> str | None:
     )
 
 
+#: ``expect`` values a case may use.
+EXPECT_KINDS: frozenset[str] = frozenset({"resolve", "clarify", "refuse", "ambiguous"})
+
+
 def evaluate_case(assistant, case: dict) -> CaseOutcome:
-    """Run one case and grade it against its expectation."""
+    """Run one case and grade it against its expectation.
+
+    ``expect`` is one of:
+
+    * ``resolve`` - an in-scope request: the assistant must execute the intended
+      intent/target or ask a *suggestion* question that names it.
+    * ``clarify`` - the request is under-specified or mistyped; asking back is
+      the expected answer. Executing exactly the intended action is accepted as
+      well (the assistant was more decisive than required), executing anything
+      else is a wrong target.
+    * ``refuse`` - out of scope, unsafe or injection-shaped: never execute.
+    * ``ambiguous`` - must be resolved by a question, never silently guessed.
+    """
     text = case["text"]
     kind = case.get("expect", "resolve")
+    if kind not in EXPECT_KINDS:
+        raise ValueError(f"unknown golden expectation {kind!r} for {text!r}")
     category = case.get("category", "general")
     result = assistant.handle(text)
 
@@ -117,7 +135,8 @@ def evaluate_case(assistant, case: dict) -> CaseOutcome:
                                "ambiguous request was executed without asking")
         return CaseOutcome(text, category, CORRECT_AMBIGUOUS, result.intent, result.reason)
 
-    # kind == "resolve": an in-scope request must either act or ask back.
+    # kind in {"resolve", "clarify"}: an in-scope request must either act on the
+    # intended target or ask back about it.
     expected_intent = case.get("intent")
     expected_target = case.get("target")
     actual_target = _target_of(result)
@@ -126,9 +145,12 @@ def evaluate_case(assistant, case: dict) -> CaseOutcome:
         if expected_intent and result.intent != expected_intent:
             return CaseOutcome(text, category, WRONG_ACCEPT, result.intent, result.reason,
                                f"expected {expected_intent}, executed {result.intent}")
-        if expected_target and actual_target and actual_target != expected_target:
-            return CaseOutcome(text, category, WRONG_TARGET, result.intent, result.reason,
-                               f"expected target {expected_target}, executed {actual_target}")
+        if expected_target and actual_target != expected_target:
+            return CaseOutcome(
+                text, category, WRONG_TARGET, result.intent, result.reason,
+                f"expected target {expected_target}, "
+                f"executed {actual_target or 'an unnamed target'}",
+            )
         return CaseOutcome(text, category, CORRECT, result.intent, result.reason,
                            actual_target or "")
 

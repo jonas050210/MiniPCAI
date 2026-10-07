@@ -63,6 +63,30 @@ class TestTypoTolerance:
         assert result.reason == "target_not_found"
         assert "downloads" in result.message  # helpful hint, but no execution
 
+    @pytest.mark.parametrize(
+        ("text", "target", "alias"),
+        [
+            ("öfne notepad", "notepad", "notepad"),
+            ("mach notizen auf", "notes", "notizen"),
+            ("geh auf wikipedia", "wikipedia", "wikipedia"),
+        ],
+    )
+    def test_exactly_named_alias_beats_an_unconvinced_classifier(
+        self, make_assistant, text, target, alias
+    ):
+        """The registry alias is the ground truth for *which* target; when the
+        classifier's best guess points at the same section, the gate trusts the
+        alias instead of rejecting a mistyped verb."""
+        result = make_assistant().handle(text)
+        assert result.status == "ok", f"{text}: {result.message}"
+        assert result.details["target_id"] == target
+
+    def test_lexical_rescue_stays_narrow(self, make_assistant):
+        """The alias lookup must not overrule a *different* section."""
+        assistant = make_assistant()
+        assert assistant._lexical_intent("lösche notepad", "unknown") is None
+        assert assistant._lexical_intent("erzähl mir einen witz", "open_app") is None
+
 
 
 class TestRejections:

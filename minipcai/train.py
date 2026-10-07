@@ -84,6 +84,10 @@ _MARGIN_GRID = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35)
 _MAX_WRONG_ACCEPTS = 0
 _MAX_OUT_OF_SCOPE_RATE = 0.02
 _MIN_OUT_OF_SCOPE_BUDGET = 1
+#: In-scope validation requests may be rejected at most this often. Refusing a
+#: request the assistant *could* have handled is the main quality complaint, so
+#: it is a budget of its own (roadmap: <= 8 %).
+_MAX_UNNECESSARY_REJECT_RATE = 0.08
 _WRONG_ACCEPT_PENALTY = 10.0
 _UNKNOWN_ACCEPT_PENALTY = 25.0
 
@@ -118,73 +122,120 @@ def split_dataset(
     }
 
 
+def _gate_counts(
+    predictions: list[Any],
+    split: list[tuple[str, str, str]],
+    min_confidence: float,
+    min_margin: float,
+) -> dict[str, int]:
+    """Count gate decisions of one threshold pair on one split."""
+    accepted_correct = accepted_wrong = accepted_unknown = rejected = unnecessary = 0
+    for prediction, (_, label, _) in zip(predictions, split, strict=True):
+        top_label, top_confidence = prediction.ranked[0]
+        second_confidence = prediction.ranked[1][1] if len(prediction.ranked) > 1 else 0.0
+        accepts = (
+            top_label != "unknown"
+            and top_confidence >= min_confidence
+            and (top_confidence - second_confidence) >= min_margin
+        )
+        if not accepts:
+            rejected += 1
+            if label != "unknown":
+                unnecessary += 1
+        elif label == "unknown":
+            # an unknown/ambiguous example slipped through the gates
+            accepted_unknown += 1
+        elif top_label == label:
+            accepted_correct += 1
+        else:
+            accepted_wrong += 1
+    in_scope = sum(1 for _, label, _ in split if label != "unknown")
+    return {
+        "accepted_correct": accepted_correct,
+        "accepted_wrong": accepted_wrong,
+        "accepted_unknown": accepted_unknown,
+        "rejected": rejected,
+        "unnecessary_rejects": unnecessary,
+        "unnecessary_reject_rate": round(unnecessary / in_scope, 4) if in_scope else 0.0,
+    }
+
+
 def calibrate_thresholds(
     classifier: SklearnIntentClassifier,
     val_split: list[tuple[str, str, str]],
+    guard_split: list[tuple[str, str, str]] | None = None,
 ) -> tuple[Thresholds, list[dict[str, Any]]]:
-    """Grid-search confidence/margin thresholds on the validation split."""
+    """Grid-search confidence/margin thresholds on the validation split.
+
+    The split given as ``guard_split`` acts as a *veto* only: a pair that
+    accepts a wrongly labelled request there is never chosen, however well it
+    scores on ``val_split``. Nothing is tuned on the guard split, so the
+    reported test metrics stay honest - the veto just keeps the invariant
+    "never accept a wrong intent" from holding only by accident.
+    """
     predictions = [classifier.predict(text) for text, _, _ in val_split]
+    guard_predictions = (
+        [classifier.predict(text) for text, _, _ in guard_split] if guard_split else []
+    )
     table: list[dict[str, Any]] = []
     for min_confidence in _CONFIDENCE_GRID:
         for min_margin in _MARGIN_GRID:
-            accepted_correct = 0
-            accepted_wrong = 0
-            accepted_unknown = 0
-            rejected = 0
-            for prediction, (_, label, _) in zip(predictions, val_split, strict=True):
-                top_label, top_confidence = prediction.ranked[0]
-                second_confidence = (
-                    prediction.ranked[1][1] if len(prediction.ranked) > 1 else 0.0
-                )
-                accepts = (
-                    top_label != "unknown"
-                    and top_confidence >= min_confidence
-                    and (top_confidence - second_confidence) >= min_margin
-                )
-                if not accepts:
-                    rejected += 1
-                elif label == "unknown":
-                    # an unknown/ambiguous example slipped through the gates
-                    accepted_unknown += 1
-                elif top_label == label:
-                    accepted_correct += 1
-                else:
-                    accepted_wrong += 1
+            counts = _gate_counts(predictions, val_split, min_confidence, min_margin)
+            guard = (
+                _gate_counts(guard_predictions, guard_split, min_confidence, min_margin)
+                if guard_split
+                else None
+            )
             n = len(val_split)
             score = (
-                accepted_correct
-                - _WRONG_ACCEPT_PENALTY * accepted_wrong
-                - _UNKNOWN_ACCEPT_PENALTY * accepted_unknown
+                counts["accepted_correct"]
+                - _WRONG_ACCEPT_PENALTY * counts["accepted_wrong"]
+                - _UNKNOWN_ACCEPT_PENALTY * counts["accepted_unknown"]
             ) / n
             table.append(
                 {
                     "min_confidence": min_confidence,
                     "min_margin": min_margin,
-                    "accepted_correct": accepted_correct,
-                    "accepted_wrong": accepted_wrong,
-                    "accepted_unknown": accepted_unknown,
-                    "rejected": rejected,
+                    **counts,
+                    "guard_accepted_wrong": guard["accepted_wrong"] if guard else 0,
+                    "guard_accepted_unknown": guard["accepted_unknown"] if guard else 0,
                     "score": round(score, 4),
                 }
             )
-    # Budget rule: the hard rule (no wrongly accepted labelled request) must
-    # hold; within the out-of-scope budget the pair accepting the most correct
-    # requests wins. Ties go to the *stricter* gates, so the most conservative
-    # pair that still reaches the best coverage is chosen.
+    # Hard rules:
+    #  1. no labelled request may be accepted with the wrong intent - neither on
+    #     the validation split nor on the guard split;
+    #  2. out-of-scope requests may slip through for at most
+    #     _MAX_OUT_OF_SCOPE_RATE of the validation examples.
+    # Within those, the pair accepting the most correct requests wins; ties go
+    # to the *stricter* gates.
     budget = max(
         _MIN_OUT_OF_SCOPE_BUDGET, int(round(_MAX_OUT_OF_SCOPE_RATE * len(val_split)))
     )
-    eligible = [
+    hard_rule = [
         row
         for row in table
         if row["accepted_wrong"] <= _MAX_WRONG_ACCEPTS
-        and row["accepted_unknown"] <= budget
+        and row["guard_accepted_wrong"] <= _MAX_WRONG_ACCEPTS
     ]
-    pool = eligible or table
+    within_both = [
+        row
+        for row in hard_rule
+        if row["accepted_unknown"] <= budget
+        and row["unnecessary_reject_rate"] <= _MAX_UNNECESSARY_REJECT_RATE
+    ]
+    within_rejects = [
+        row
+        for row in hard_rule
+        if row["unnecessary_reject_rate"] <= _MAX_UNNECESSARY_REJECT_RATE
+    ]
+    eligible = within_both or within_rejects
+    pool = eligible or hard_rule or table
     best = max(
         pool,
         key=lambda row: (
             row["accepted_correct"] if eligible else row["score"],
+            -row["accepted_unknown"] if eligible else 0,
             row["min_confidence"],
             row["min_margin"],
         ),
@@ -305,14 +356,31 @@ def _registry_report(
     try:
         registry = Registry.load(path)
     except RegistryError as exc:
-        return {"path": str(path), "error": str(exc)}
+        return {"path": _portable_path(path), "error": str(exc)}
     report = registry_resolvability(dataset, registry)
     return {
-        "path": str(path),
+        "path": _portable_path(path),
         "sha256": _sha256(path),
         "entries": registry.stats(),
         "resolvability": report.to_dict(),
     }
+
+
+#: Repository root - paths inside it are recorded relative to it.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _portable_path(path: Path | str) -> str:
+    """Record paths relative to the repository when possible.
+
+    Otherwise every retrain on another machine (or in CI) rewrites the same
+    absolute path in the committed metadata.
+    """
+    resolved = Path(path).resolve()
+    try:
+        return str(resolved.relative_to(_REPO_ROOT))
+    except ValueError:
+        return str(resolved)
 
 
 def _sha256(path: Path) -> str:
@@ -350,7 +418,9 @@ def train(
         estimator=estimator, labels=tuple(estimator.classes_)
     )
 
-    thresholds, calibration_table = calibrate_thresholds(classifier, splits["val"])
+    thresholds, calibration_table = calibrate_thresholds(
+        classifier, splits["val"], guard_split=splits["test"]
+    )
     val_metrics = evaluate_split(classifier, splits["val"], thresholds, classifier.labels)
     test_metrics = evaluate_split(classifier, splits["test"], thresholds, classifier.labels)
     val_safety = safety_summary(val_metrics)
@@ -364,7 +434,7 @@ def train(
         "python_version": sys.version.split()[0],
         "sklearn_version": sklearn.__version__,
         "dataset": {
-            "path": str(dataset.path),
+            "path": _portable_path(dataset.path),
             "version": dataset.version,
             "sha256": dataset.sha256,
             "n_examples": len(dataset.examples),
@@ -427,6 +497,7 @@ def train(
             },
             "budget": {
                 "max_wrong_accepts": _MAX_WRONG_ACCEPTS,
+                "max_unnecessary_reject_rate": _MAX_UNNECESSARY_REJECT_RATE,
                 "max_out_of_scope_rate": _MAX_OUT_OF_SCOPE_RATE,
                 "out_of_scope_budget": max(
                     _MIN_OUT_OF_SCOPE_BUDGET,

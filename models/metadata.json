@@ -1,34 +1,34 @@
 {
   "model_format": "minipcai-sklearn-v1",
-  "created_at": "2026-10-07T04:45:36+00:00",
+  "created_at": "2026-10-07T04:56:03+00:00",
   "trained_on": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "python_version": "3.11.2",
   "sklearn_version": "1.9.1",
   "dataset": {
-    "path": "/home/user/MiniPCAI/minipcai/data/intent_dataset.v3.jsonl",
-    "version": 3,
-    "sha256": "c87826da234c4f9864878c17d5c9d0d1377c26188082b67960b7ffac75771e8d",
-    "n_examples": 2053,
+    "path": "minipcai/data/intent_dataset.v4.jsonl",
+    "version": 4,
+    "sha256": "5eaeef8dab9a2c0428b0d9e29b488eed52b0b44d7faf61d6c9f6006b7691da02",
+    "n_examples": 2372,
     "label_counts": {
-      "open_app": 240,
-      "close_app": 203,
-      "open_url": 124,
-      "open_file": 158,
-      "open_folder": 134,
-      "find_file": 87,
-      "web_search": 279,
-      "sys_cpu": 64,
-      "sys_ram": 74,
-      "sys_disk": 89,
-      "sys_summary": 85,
-      "calc": 89,
-      "timer": 95,
-      "unknown": 332
+      "open_app": 273,
+      "close_app": 244,
+      "open_url": 142,
+      "open_file": 183,
+      "open_folder": 158,
+      "find_file": 102,
+      "web_search": 331,
+      "sys_cpu": 71,
+      "sys_ram": 85,
+      "sys_disk": 100,
+      "sys_summary": 102,
+      "calc": 136,
+      "timer": 114,
+      "unknown": 331
     },
     "category_counts": {
-      "normal": 1359,
-      "typo": 362,
-      "unknown": 237,
+      "normal": 1381,
+      "typo": 660,
+      "unknown": 236,
       "ambiguous": 95
     }
   },
@@ -75,24 +75,24 @@
   },
   "split": {
     "seed": 42,
-    "train": 1437,
-    "val": 308,
-    "test": 308
+    "train": 1660,
+    "val": 356,
+    "test": 356
   },
   "thresholds": {
-    "min_confidence": 0.4,
-    "min_margin": 0.1
+    "min_confidence": 0.7,
+    "min_margin": 0.35
   },
   "metrics_summary": {
-    "test_accuracy": 0.987,
-    "test_macro_f1": 0.9891
+    "test_accuracy": 0.9551,
+    "test_macro_f1": 0.9547
   },
   "safety_summary": {
     "test_accepted_wrong_in_scope": 0,
-    "test_accepted_out_of_scope": 2
+    "test_accepted_out_of_scope": 7
   },
   "registry": {
-    "path": "/home/user/MiniPCAI/minipcai/data/registry.json",
+    "path": "minipcai/data/registry.json",
     "sha256": "6fc53259f0455273bf1e0b51b86fba5606c9b309579ec22cae5bc967cb947039",
     "entries": {
       "entries": 22,

@@ -47,7 +47,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:  # allow `python scripts/generate_dataset.py`
     sys.path.insert(0, str(REPO_ROOT))
 
-DATASET_VERSION = 3
+DATASET_VERSION = 4
 
 # ---------------------------------------------------------------------------
 # Registry-driven synthesis
@@ -1265,6 +1265,29 @@ EXTRA_NORMAL_EXAMPLES: dict[str, list[str]] = {
         "kurzer systembericht",
     ],
     "calc": [
+        # percentages and number words (v4)
+        "wie viel prozent sind 50 von 200",
+        "was ist 15 prozent von 80",
+        "berechne 20 prozent von 50",
+        "rechne 30% von 200",
+        "wie viel sind 25 prozent von 40",
+        "was sind 10 prozent von 250",
+        "berechne 5 prozent von 1000",
+        "rechne 20 prozent",
+        "wie viel sind 15 prozent",
+        "was ist 20 prozent von 50 euro",
+        "rechne fünfzig prozent von 80",
+        "addiere zwanzig und dreißig",
+        "was ist zwanzig plus dreißig",
+        "rechne fünfundzwanzig mal vier",
+        "subtrahiere 5 von 20",
+        "multipliziere 6 mit 7",
+        "teile 84 durch 7",
+        "die hälfte von 90",
+        "ein drittel von 30",
+        "ein viertel von 100",
+        "was ist ein viertel von 80",
+        "berechne die hälfte von 120",
         "was ergibt 15 mal 4",
         "rechne bitte 99 geteilt durch 9",
         "wie viel ist 8 plus 9",
@@ -1392,6 +1415,11 @@ EXTRA_HANDWRITTEN_TYPOS: dict[str, list[str]] = {
         "ist der pc in ordnung bitte",
     ],
     "calc": [
+        "was ist 15 proznet von 80",
+        "berechne 20 prozent von 5",
+        "rechne 30% von 20",
+        "addiere zwanzig und dreissig",
+        "die hälfte von 9",
         "was ergibt 15 mal 4 bite",
         "rechne bitte 99 geteilt durc 9",
         "berechne 3 hcoh 4 bitte",
@@ -1428,7 +1456,6 @@ EXTRA_UNKNOWN: list[str] = [
     "starte mal was",
     "suche was",
     "finde was",
-    "wie viel prozent sind 50 von 200",
     "was ist die wurzel aus 16",
     "wie viel sind 100 euro in dollar",
     "rechne die prozent aus",
@@ -1726,8 +1753,28 @@ def _apply_typo(rng: random.Random, text: str) -> str | None:
     return None
 
 
+def _apply_hard_typo(rng: random.Random, text: str) -> str | None:
+    """Apply two independent mistakes - the kind a rushed user makes.
+
+    Single edits are covered by ``_apply_typo``; real-world requests often
+    contain two (``dokumnete``, ``firofox``), and the classifier must still be
+    confident enough to answer them instead of refusing.
+    """
+    result = text
+    applied = 0
+    for _ in range(2):
+        candidate = _apply_typo(rng, result)
+        if candidate and candidate != result:
+            result = candidate
+            applied += 1
+    return result if applied else None
+
+
 def augment_with_typos(
-    examples: list[tuple[str, str]], seed: int, fraction: float
+    examples: list[tuple[str, str]],
+    seed: int,
+    fraction: float,
+    mutator=_apply_typo,
 ) -> list[tuple[str, str]]:
     """Return additional typo variants for a fraction of ``examples``.
 
@@ -1738,7 +1785,7 @@ def augment_with_typos(
     for label, text in examples:
         if rng.random() >= fraction:
             continue
-        typo = _apply_typo(rng, text)
+        typo = mutator(rng, text)
         if typo and typo != text:
             out.append((label, typo))
     return out
@@ -1839,6 +1886,15 @@ def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
                 add(label, typo, "typo")
             except ValueError:
                 pass  # augmentation collided with an existing example; skip it
+        # A second, harder pass: two mistakes in one request. This is what the
+        # golden hard set punishes most, so those variants belong in training.
+        hard = augment_with_typos(base, seed=label_seed + 7, fraction=typo_fraction,
+                                 mutator=_apply_hard_typo)
+        for _, typo in hard:
+            try:
+                add(label, typo, "typo")
+            except ValueError:
+                pass
 
     # Unknown and ambiguous requests share the "unknown" label.
     for text in unknown_examples:

@@ -22,6 +22,7 @@ from minipcai.golden import (
     CLARIFY_OFFER,
     CORRECT,
     CORRECT_AMBIGUOUS,
+    EXPECT_KINDS,
     MAX_UNNECESSARY_REJECT_RATE,
     UNNECESSARY_REJECT,
     WRONG_ACCEPT,
@@ -83,10 +84,14 @@ class TestGoldenHardSet:
 
     def test_jsonl_entries_are_well_formed(self):
         for case in load_cases(GOLDEN_PATH):
-            assert case["expect"] in {"resolve", "refuse", "ambiguous"}
+            assert case["expect"] in EXPECT_KINDS
             assert case["text"].strip()
-            if case["expect"] == "resolve":
+            if case["expect"] in {"resolve", "clarify"}:
                 assert case.get("intent")
+            if case["expect"] == "clarify":
+                # a clarification case is only useful when it names the target
+                # the question has to be about
+                assert case.get("target")
 
 
 class TestRegistrySweep:
@@ -158,3 +163,10 @@ class TestRegistrySweep:
         registry = Registry.load(registry_factory(searchers=SEARCHERS))
         for case in self.build_cases(registry):
             json.dumps(case, ensure_ascii=False)
+
+    def test_an_unknown_expectation_is_rejected_loudly(self, make_assistant, registry_factory):
+        assistant = _golden_assistant(make_assistant, registry_factory)
+        with pytest.raises(ValueError, match="unknown golden expectation"):
+            from minipcai.golden import evaluate_case
+
+            evaluate_case(assistant, {"text": "öffne notepad", "expect": "vibes"})

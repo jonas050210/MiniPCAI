@@ -44,7 +44,7 @@ syntax (`;`, `` ` ``, `|`, `&&`, `||`, `$(`, `${}`, newlines) is refused as
 `unsafe_request` before the classifier runs, so "öffne notepad; rm -rf /" is
 not interpreted as a valid action.
 
-### 2. Blocklists that survive a hand-edited registry
+### 3. Blocklists that survive a hand-edited registry
 
 Even if somebody edits the registry by hand, these are refused at load time and
 again at execution time:
@@ -56,7 +56,7 @@ again at execution time:
 * executable-less names (the file type must be verifiable),
 * relative paths, `..` traversal, non-`http(s)` URLs, non-`.exe` applications.
 
-### 3. Trusted application locations
+### 4. Trusted application locations
 
 Applications must live under a trusted root (`%ProgramFiles%`,
 `%ProgramFiles(x86)%`, `%SystemRoot%\System32`, `%SystemRoot%`, `%ProgramData%`,
@@ -69,7 +69,7 @@ are used instead of skipping the check.
 Optional integrity pinning: `"sha256": "…"` on an app entry, or an
 `executable_hashes` map in the policy, pins the binary that is allowed to run.
 
-### 4. Confirmation before state-changing actions
+### 5. Confirmation before state-changing actions
 
 Closing an application can discard unsaved work and a web search leaves the
 machine, so both ask first (`confirmation_intents`, default
@@ -81,7 +81,7 @@ machine, so both ask first (`confirmation_intents`, default
 * can be skipped for scripts with `--yes` or `MINIPCAI_NO_CONFIRM=1` — never by
   accident, never partially.
 
-### 5. Fail-closed audit log
+### 6. Fail-closed audit log
 
 Every accepted request is written to the audit log *before* it is executed. If
 that write fails, the action is not executed and the request is rejected with
@@ -90,7 +90,7 @@ carries a SHA-256 hash chain (`prev`/`hash`) so deleting or editing a record is
 detectable with `minipcai audit --verify`. Privacy mode stores a hash and the
 length of the request instead of its text.
 
-### 6. Executors
+### 7. Executors
 
 `dry-run` (the default) performs no side effects and only records plans.
 `windows` is the real executor. It uses `subprocess.Popen([exe], shell=False)`

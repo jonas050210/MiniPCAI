@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from minipcai.intents import TARGETED_INTENTS
+from minipcai.intents import REGISTRY_SECTIONS, TARGETED_INTENTS
 from minipcai.registry import Registry, RegistryEntry
 from minipcai.textutils import (
     bigram_dice,
@@ -28,7 +28,7 @@ from minipcai.textutils import (
 )
 
 # Human-readable names per registry section, used in messages and details.
-_SECTION_KINDS = {
+SECTION_KINDS = {
     "apps": "app",
     "files": "file",
     "folders": "folder",
@@ -145,6 +145,72 @@ def _suggest_alias(
     return best[2], best[1]
 
 
+#: Which intent a registry section implies when the user confirmed a target.
+_SECTION_INTENTS: dict[str, str] = {
+    "apps": "open_app",
+    "files": "open_file",
+    "folders": "open_folder",
+    "websites": "open_url",
+}
+#: Words that turn a confirmed app target into "close it".
+_CLOSE_WORDS = ("schließ", "schliess", "beende", "beenden", "zu machen", "zumachen",
+                "close", "quit", "exit", "beendet")
+
+#: Across sections a suggestion has to be a clear winner: this similarity
+#: margin above the runner-up keeps "did you mean" honest.
+_SUGGESTION_WINNING_MARGIN = 0.1
+
+
+def suggest_entry(
+    text: str, registry: Registry, sections: tuple[str, ...] | None = None
+) -> tuple[RegistryEntry, str] | None:
+    """Best registry entry for a (probably mistyped) request, across sections.
+
+    Used when the classifier is not confident: instead of refusing outright,
+    the pipeline can ask "did you mean 'dokumente'?". The suggestion is only
+    returned when it is a *clear* winner, so the question stays useful.
+    """
+    sections = sections or REGISTRY_SECTIONS
+    words = [word for word in fold(text).split() if len(word) >= 4]
+    best: tuple[float, str, RegistryEntry] | None = None
+    runner_up = 0.0
+    for section in sections:
+        for entry in registry.section(section):
+            for alias in entry.aliases:
+                folded_alias = fold(alias)
+                if len(folded_alias) < 4:
+                    continue
+                for word in words:
+                    distance = damerau_levenshtein(word, folded_alias)
+                    if distance > (2 if len(folded_alias) >= 7 else 1):
+                        continue
+                    similarity = bigram_dice(word, folded_alias)
+                    if similarity < _MIN_SUGGESTION_SIMILARITY:
+                        continue
+                    score = (float(distance), -similarity, entry.id)
+                    if best is None or score < best[0]:
+                        runner_up = best[0][1] * -1 if best else 0.0
+                        best = (score, folded_alias, entry)
+                    elif similarity > runner_up:
+                        runner_up = similarity
+    if best is None:
+        return None
+    winning_margin = (best[0][1] * -1) - runner_up
+    if len(sections) > 1 and runner_up and winning_margin < _SUGGESTION_WINNING_MARGIN:
+        return None
+    return best[2], best[1]
+
+
+def intent_for_entry(entry: RegistryEntry, text: str) -> str | None:
+    """The intent a confirmed target implies (``close_app`` for close verbs)."""
+    intent = _SECTION_INTENTS.get(entry.section)
+    if intent is None:
+        return None
+    if intent == "open_app" and any(word in fold(text) for word in _CLOSE_WORDS):
+        return "close_app"
+    return intent
+
+
 def _resolve_registry_target(intent: str, text: str, registry: Registry) -> ActionPlan:
     section = TARGETED_INTENTS[intent]
     matches = registry.find_matches(text, section)
@@ -157,7 +223,7 @@ def _resolve_registry_target(intent: str, text: str, registry: Registry) -> Acti
             f"Multiple {section} match this request ({names}). Please name exactly one.",
             details={"candidates": candidates, "options": candidates},
             message_key="target.ambiguous",
-            message_fields={"names": names, "kind": _SECTION_KINDS[section]},
+            message_fields={"names": names, "kind": SECTION_KINDS[section]},
         )
 
     if len(matches) == 1:
@@ -173,7 +239,7 @@ def _resolve_registry_target(intent: str, text: str, registry: Registry) -> Acti
     hit_sections = [s for s, ms in other_matches.items() if ms]
     if len(hit_sections) == 1 and len(other_matches[hit_sections[0]]) == 1:
         entry = other_matches[hit_sections[0]][0].entry
-        kind = _SECTION_KINDS[entry.section]
+        kind = SECTION_KINDS[entry.section]
         raise TargetError(
             TARGET_MISMATCH,
             f"'{entry.id}' is a registered {kind}, but this request sounds like a "
@@ -184,7 +250,7 @@ def _resolve_registry_target(intent: str, text: str, registry: Registry) -> Acti
         )
 
     hint = _suggest_alias(text, registry, section)
-    kind = _SECTION_KINDS[section]
+    kind = SECTION_KINDS[section]
     alias = hint[1] if hint else ""
     message = (
         f"No approved {kind} matches this request. Only targets from the registry "

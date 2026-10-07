@@ -175,3 +175,46 @@ class TestBigramDice:
         from minipcai.textutils import bigram_dice
 
         assert bigram_dice("notepad", "wikipedia") < 0.2
+
+
+class TestNumberWords:
+    def test_simple_and_compound_number_words(self):
+        from minipcai.textutils import parse_number_word
+
+        assert parse_number_word("zwanzig") == 20
+        assert parse_number_word("fünfundzwanzig") == 25
+        assert parse_number_word("zweihundert") == 200
+        assert parse_number_word("dreitausend") == 3000
+        assert parse_number_word("zwölf") == 12
+        assert parse_number_word("fuenfzig") == 50
+
+    def test_non_number_words_are_rejected(self):
+        from minipcai.textutils import parse_number_word
+
+        assert parse_number_word("notepad") is None
+        assert parse_number_word("neumann") is None
+        assert parse_number_word("") is None
+
+
+class TestMathPhrases:
+    def test_percentages(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("was ist 15 prozent von 80") == "(15 * 80 / 100)"
+        assert extract_math_expression("20% von 50 euro") == "(20 * 50 / 100)"
+        assert extract_math_expression("wie viel sind 30 prozent") == "(30 / 100)"
+
+    def test_number_words_and_operation_verbs(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("addiere zwanzig und dreißig") == "(20 + 30)"
+        assert extract_math_expression("subtrahiere 5 von 20") == "(20 - 5)"
+        assert extract_math_expression("multipliziere 6 mit 7") == "(6 * 7)"
+        assert extract_math_expression("rechne fünfundzwanzig mal vier") == "25 * 4"
+
+    def test_fractions_of_numbers(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("die hälfte von 90") == "(90 * 0.5)"
+        assert extract_math_expression("ein viertel von 100") == "(100 * 0.25)"
+        assert extract_math_expression("ein drittel von 30") == "(30 / 3)"

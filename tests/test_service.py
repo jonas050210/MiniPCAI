@@ -270,3 +270,28 @@ class TestTimers:
         time.sleep(1.1)
         assert service.active_timers() == []
         service.shutdown()
+
+
+class TestTypoClarification:
+    """A typo must produce "Meintest du ...?" and then the right action."""
+
+    def test_mistyped_target_asks_back_and_then_executes(self, make_assistant):
+        assistant = make_assistant()
+        service = AssistantService(assistant)
+        question = service.ask("öffne dokumnete")
+        assert question.status == "clarification_required"
+        assert "dokumente" in question.message
+        assert question.details["options"] == ["documents"]
+        confirmed = service.ask("ja")
+        assert confirmed.status == "ok"
+        assert confirmed.details["target_id"] == "documents"
+        service.shutdown()
+
+    def test_destructive_typo_is_never_executed_without_confirmation(self, make_assistant):
+        assistant = make_assistant(auto_confirm=False)
+        service = AssistantService(assistant)
+        result = service.ask("schließe notepda")
+        # either a clarification question or a refusal - never an execution
+        assert result.status in {"clarification_required", "rejected"}
+        assert assistant.executor.plans == []
+        service.shutdown()

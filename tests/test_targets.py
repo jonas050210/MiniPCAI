@@ -261,3 +261,32 @@ class TestFuzzySuggestions:
                 resolve_target("open_app", "starte firofox", registry)
             suggestions.add(caught.value.details["suggestion_alias"])
         assert suggestions == {"firefox"}
+
+
+class TestCrossSectionSuggestion:
+    """When the classifier is unsure, the registry can still name the target."""
+
+    def test_suggestion_finds_the_entry_across_sections(self, registry):
+        from minipcai.targets import suggest_entry
+
+        hint = suggest_entry("öffne dokumnete", registry)
+        assert hint is not None
+        entry, alias = hint
+        assert entry.id == "documents" and entry.section == "folders"
+        assert alias == "dokumente"
+
+    def test_unrelated_text_has_no_suggestion(self, registry):
+        from minipcai.targets import suggest_entry
+
+        assert suggest_entry("erzähl mir einen witz", registry) is None
+        assert suggest_entry("wie wird das wetter", registry) is None
+
+    def test_intent_for_entry_uses_the_section_and_the_verb(self, registry):
+        from minipcai.targets import intent_for_entry
+
+        apps = registry.by_id("notepad")
+        assert intent_for_entry(apps, "öffne notepad") == "open_app"
+        assert intent_for_entry(apps, "schließe notepad") == "close_app"
+        assert intent_for_entry(apps, "beende notepad") == "close_app"
+        assert intent_for_entry(registry.by_id("wikipedia"), "geh auf wikipedia") == "open_url"
+        assert intent_for_entry(registry.by_id("notes"), "öffne notizen") == "open_file"

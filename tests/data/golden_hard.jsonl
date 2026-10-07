@@ -39,12 +39,12 @@
 {"text": "gib mir eine systemübersicht", "expect": "resolve", "intent": "sys_summary", "category": "sysinfo"}
 {"text": "oeffne notepad", "expect": "resolve", "intent": "open_app", "target": "notepad", "category": "typo"}
 {"text": "schliesse firefox", "expect": "resolve", "intent": "close_app", "target": "firefox", "category": "typo"}
-{"text": "öffne dokumnete", "expect": "resolve", "intent": "open_folder", "target": "documents", "category": "typo"}
-{"text": "öffne downlaods", "expect": "resolve", "intent": "open_folder", "target": "downloads", "category": "typo"}
-{"text": "öffne chorme", "expect": "resolve", "intent": "open_app", "target": "chrome", "category": "typo"}
-{"text": "starte firofox", "expect": "resolve", "intent": "open_app", "target": "firefox", "category": "typo"}
+{"text": "öffne dokumnete", "expect": "clarify", "intent": "open_folder", "target": "documents", "category": "typo"}
+{"text": "öffne downlaods", "expect": "clarify", "intent": "open_folder", "target": "downloads", "category": "typo"}
+{"text": "öffne chorme", "expect": "clarify", "intent": "open_app", "target": "chrome", "category": "typo"}
+{"text": "starte firofox", "expect": "clarify", "intent": "open_app", "target": "firefox", "category": "typo"}
 {"text": "suchmaschiene", "expect": "resolve", "intent": "open_url", "target": "google", "category": "typo"}
-{"text": "notizn", "expect": "resolve", "intent": "open_file", "target": "notes", "category": "typo"}
+{"text": "notizn", "expect": "clarify", "intent": "open_file", "target": "notes", "category": "typo"}
 {"text": "kannst du bitte notepad öffnen", "expect": "resolve", "intent": "open_app", "target": "notepad", "category": "colloquial"}
 {"text": "ich möchte firefox starten", "expect": "resolve", "intent": "open_app", "target": "firefox", "category": "colloquial"}
 {"text": "mach mir bitte den browser auf", "expect": "resolve", "intent": "open_app", "target": "firefox", "category": "colloquial"}

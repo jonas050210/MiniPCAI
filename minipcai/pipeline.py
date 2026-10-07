@@ -33,7 +33,7 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from minipcai import i18n
 from minipcai.actions import (
@@ -44,7 +44,7 @@ from minipcai.actions import (
 )
 from minipcai.audit import AuditError, AuditLogger
 from minipcai.config import MAX_INPUT_LENGTH, Thresholds
-from minipcai.intents import UNKNOWN_LABEL
+from minipcai.intents import TARGETED_INTENTS, UNKNOWN_LABEL
 from minipcai.model import IntentModel, ModelError, SklearnIntentClassifier
 from minipcai.paths import resolve_registry_path
 from minipcai.policy import (
@@ -55,7 +55,14 @@ from minipcai.policy import (
 )
 from minipcai.registry import Registry
 from minipcai.security import SecurityError, SecurityValidator
-from minipcai.targets import ActionPlan, TargetError, resolve_target
+from minipcai.targets import (
+    SECTION_KINDS,
+    ActionPlan,
+    TargetError,
+    intent_for_entry,
+    resolve_target,
+    suggest_entry,
+)
 
 logger = logging.getLogger("minipcai.pipeline")
 
@@ -310,6 +317,68 @@ class Assistant:
             message_fields={"action": description + " ", "yes": answer, "no": answer},
         )
 
+    def _lexical_intent(self, text: str, top_label: str) -> str | None:
+        """Intent implied by an exactly named registry alias.
+
+        "öfne notepad" is only a typo in the verb - the target is spelled out
+        exactly, and the classifier's best guess already points at the same
+        section (apps). In that case the gate can trust the section instead of
+        refusing. Anything less clear-cut is *not* resolved here: a request
+        whose best guess is unknown could contain any verb ("lösche notepad"),
+        so it must go through the normal (safer) clarification path.
+        """
+        expected_section = TARGETED_INTENTS.get(top_label)
+        if expected_section is None:
+            return None
+        matches = self.registry.find_matches_across_sections(text)
+        hits = matches.get(expected_section) or []
+        if len(hits) != 1:
+            return None
+        entry = hits[0].entry
+        implied = intent_for_entry(entry, text)
+        return implied if implied is not None else None
+
+    def _typo_hint(
+        self,
+        text: str,
+        request_id: str,
+        top_label: str,
+        top_confidence: float,
+        top3: list[tuple[str, float]],
+    ) -> AssistantResult | None:
+        """Ask "did you mean X?" instead of refusing a probably-mistyped request.
+
+        Returns ``None`` when no registry entry is close enough; the caller then
+        falls back to the regular rejection.
+        """
+        hint = suggest_entry(text, self.registry)
+        if hint is None:
+            return None
+        entry, alias = hint
+        kind = SECTION_KINDS.get(entry.section, entry.section)
+        return AssistantResult(
+            status=STATUS_REJECTED,
+            message=(
+                f"No approved {kind} matches this request. "
+                f"Did you mean '{alias}'?"
+            ),
+            intent=top_label,
+            confidence=top_confidence,
+            reason=REASON_TARGET_NOT_FOUND,
+            details={
+                "top_intents": top3,
+                "suggestion": entry.id,
+                "suggestion_entry": entry.id,
+                "suggestion_alias": alias,
+                "suggestion_section": entry.section,
+                "kind": kind,
+                "section": entry.section,
+            },
+            request_id=request_id,
+            message_key="target.not_found.suggestion",
+            message_fields={"suggestion": alias, "kind": kind},
+        )
+
     def _describe_plan(self, plan: ActionPlan) -> str:
         entry = plan.entry
         if plan.intent == "close_app" and entry is not None:
@@ -435,7 +504,46 @@ class Assistant:
                 message_key="unknown.request",
                 message_fields=self._capabilities(),
             )
-        if top_confidence < self.thresholds.min_confidence:
+        # 2b. A confirmed target ("Meintest du 'dokumente'?" -> yes) beats an
+        #     unconvincing classifier: the user named the target, not the
+        #     intent. Everything else (target lookup, policy, confirmations)
+        #     still applies - this only decides *which* section to resolve in.
+        intent_confirmed = False
+        if preferred_target and (
+            top_label == UNKNOWN_LABEL or top_confidence < self.thresholds.min_confidence
+            or (top_confidence - second_confidence) < self.thresholds.min_margin
+        ):
+            entry = self.registry.by_id(preferred_target)
+            hinted = intent_for_entry(entry, text) if entry is not None else None
+            if hinted is not None:
+                top_label = hinted
+                top_confidence = max(top_confidence, 0.5)
+                intent_confirmed = True  # the user named the target; skip the gates
+                logger.info("using confirmed target %s as %s", preferred_target, top_label)
+
+        # An exactly named registry alias ("öfne notepad") already carries the
+        # target; when the classifier's best guess points at the same section
+        # the gate can trust that section instead of refusing.
+        lexical = (
+            self._lexical_intent(text, top_label)
+            if (
+                not intent_confirmed
+                and top_label != UNKNOWN_LABEL
+                and (
+                    top_confidence < self.thresholds.min_confidence
+                    or (top_confidence - second_confidence) < self.thresholds.min_margin
+                )
+            )
+            else None
+        )
+        if lexical is not None:
+            top_label = lexical
+            top_confidence = max(top_confidence, 0.5)
+            second_confidence = 0.0
+        elif not intent_confirmed and top_confidence < self.thresholds.min_confidence:
+            hint = self._typo_hint(text, request_id, top_label, top_confidence, top3)
+            if hint is not None:
+                return hint
             return self._reject(
                 request_id, text, top_label, top_confidence, REASON_LOW_CONFIDENCE,
                 f"I'm not confident enough about this request ({top_confidence:.0%}). "
@@ -443,13 +551,19 @@ class Assistant:
                 details={"top_intents": top3},
                 message_fields={"confidence": f"{top_confidence:.0%}"},
             )
-        margin = top_confidence - second_confidence
-        if margin < self.thresholds.min_margin:
+        elif (
+            not intent_confirmed
+            and (top_confidence - second_confidence) < self.thresholds.min_margin
+        ):
+            hint = self._typo_hint(text, request_id, top_label, top_confidence, top3)
+            if hint is not None:
+                return hint
             return self._reject(
                 request_id, text, top_label, top_confidence, REASON_AMBIGUOUS_INTENT,
                 f"This request is ambiguous between '{top_label}' ({top_confidence:.0%}) "
                 f"and '{second_label}' ({second_confidence:.0%}). Please be more specific.",
-                details={"top_intents": top3, "margin": round(margin, 4)},
+                details={"top_intents": top3, "margin": round(
+                    top_confidence - second_confidence, 4)},
                 message_fields={
                     "top": top_label,
                     "top_confidence": f"{top_confidence:.0%}",
@@ -576,6 +690,21 @@ class Assistant:
             logger.exception("Could not write action result audit record")
 
         summary = action_result.localized_summary(self.language)
+        # Executed results always name the resolved target (or the parameters),
+        # so frontends, the audit trail and the quality harness can verify that
+        # exactly the intended action ran.
+        target_details: dict[str, Any] = {}
+        if plan.entry is not None:
+            target_details = {
+                "target_id": plan.entry.id,
+                "target_section": plan.entry.section,
+                "target_kind": plan.entry.section,
+            }
+        elif plan.search_term is not None:
+            target_details = {"search_term": plan.search_term}
+        elif plan.query is not None:
+            target_details = {"query": plan.query, "searcher_id":
+                              plan.entry.id if plan.entry else None}
         if action_result.ok:
             return AssistantResult(
                 status=STATUS_OK,
@@ -583,7 +712,7 @@ class Assistant:
                 intent=plan.intent,
                 confidence=top_confidence,
                 action_summary=action_result.summary,
-                details={**action_result.details, "top_intents": top3},
+                details={**action_result.details, **target_details, "top_intents": top3},
                 request_id=request_id,
                 message_key=getattr(action_result, "key", ""),
                 message_fields=getattr(action_result, "fields", {}),

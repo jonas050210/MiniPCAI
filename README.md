@@ -183,34 +183,40 @@ Documented environment variables: `MINIPCAI_REGISTRY`, `MINIPCAI_MODEL`, `MINIPC
 
 ## Training, evaluation and artifacts
 
-* **Dataset**: `minipcai/data/intent_dataset.v3.jsonl` — 2053 versioned German examples
+* **Dataset**: `minipcai/data/intent_dataset.v4.jsonl` — 2372 versioned German examples
   across four categories: `normal`, `typo`, `unknown` (unsupported/out-of-domain) and
   `ambiguous` (trained towards `unknown`, resolved at runtime by a clarification question).
   It is generated from the registry: `python scripts/generate_dataset.py` synthesises
-  templates from the registered aliases (deterministic seed) and *drops* every example
-  whose target the registry does not contain (140 dropped for v3). The version is part of
-  the file name and the loader always picks the highest `intent_dataset.v*.jsonl` it ships.
+  templates from the registered aliases (deterministic seed), adds one- and two-mistake
+  typo variants and *drops* every example whose target the registry does not contain
+  (140 dropped for v4). The version is part of the file name and the loader always picks
+  the highest `intent_dataset.v*.jsonl` it ships.
 * **Model**: TF-IDF word (1–2 grams) + character (2–4 grams) features with multinomial
   `LogisticRegression` (`C=10`); trains in a few seconds on CPU. `models/metadata.json`
   records the dataset version, example count and **SHA-256** of the training file, and the
   loader verifies that fingerprint — a model trained on another dataset is refused.
 * **Calibration**: `minipcai train` searches a grid of `(min_confidence, min_margin)`
-  pairs on the validation split. The hard rule is *no wrongly accepted labelled request*;
-  within a 2 % budget for accepted out-of-scope examples it maximises accepted-correct
-  decisions and ties towards the stricter gates. The chosen row, the full table and the
-  budget are recorded in `models/metrics.json`.
-* **Current results** (seed 42, committed artifacts): validation accuracy **0.9675** /
-  macro-F1 **0.9723**, test accuracy **0.9870** / macro-F1 **0.9891**,
-  `accepted_wrong_in_scope = 0` (the safety-relevant number), 2 out-of-scope accepts out
-  of 308 test examples, chosen thresholds (0.4, 0.1). A near-duplicate-disjoint grouped
-  holdout (`minipcai train --grouped-eval`) reports accuracy 0.9615 — the dataset's
-  typo variants no longer inflate the headline number.
+  pairs on the validation split. Two hard rules apply: *no wrongly accepted labelled
+  request* (checked on the validation split **and** as a veto on the guard split) and at
+  most 8 % unnecessary rejections; within a 2 % budget for accepted out-of-scope examples
+  the pair accepting the most correct requests wins, ties go to the stricter gates. The
+  chosen row, the full table and the budgets are recorded in `models/metrics.json`.
+* **Current results** (seed 42, committed artifacts): validation accuracy **0.9691** /
+  macro-F1 **0.9673**, test accuracy **0.9551** / macro-F1 **0.9547**,
+  `accepted_wrong_in_scope = 0` on validation *and* test (the safety-relevant number),
+  7 out-of-scope accepts out of 356 test examples, chosen thresholds (0.7, 0.35).
+  A near-duplicate-disjoint grouped holdout (`minipcai train --grouped-eval`) reports
+  accuracy 0.9545 — the dataset's typo variants do not inflate the headline number.
 * **Registry agreement**: training reports how many dataset targets resolve against the
-  registry (`692/692` for v3 — every targeted example is executable).
+  registry (`692/692` for v4 — every targeted example is executable).
 * **Held-out phrasings**: `tests/test_pipeline.py::TestGeneralizationToNewPhrasings`
-  exercises 20 in-scope phrasings that do not appear verbatim in the dataset plus
-  out-of-scope requests, and a 46-case realistic probe set covers spoken-style phrasing
-  ("hätte gern firefox offen") in `tests/test_user_acceptance.py`.
+  exercises in-scope phrasings that do not appear verbatim in the dataset plus
+  out-of-scope requests, and the golden hard set (below) covers realistic phrasing,
+  typos and injection attempts end to end.
+* **Typos that do not lose the target**: an exactly named registry alias
+  ("öfne notepad") resolves through the alias match, and a mistyped target
+  ("öffne dokumnete") produces a "Meintest du 'dokumente'?" question that executes the
+  right entry once confirmed — never a silent wrong action.
 * **Artifacts in git**: `models/metadata.json`, `models/metrics.json` (+ the packaged
   dataset). The binary `model.joblib` is not committed — run `minipcai train`. It is a
   joblib pickle: only load model artifacts you trained yourself.
@@ -243,7 +249,7 @@ validates and edits the file with exactly the same rules as the runtime.
 
 ```
 minipcai/
-  data/                   registry.json + intent_dataset.v3.jsonl (shipped in the wheel)
+  data/                   registry.json + intent_dataset.v4.jsonl (shipped in the wheel)
   intents.py              label definitions and intent → section mapping
   config.py               paths, limits, thresholds, Config
   paths.py                packaged vs. per-user layout, dataset discovery
