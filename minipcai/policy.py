@@ -349,6 +349,17 @@ def default_policy() -> SecurityPolicy:
     return DEFAULT_POLICY
 
 
+def effective_policy(environ: dict[str, str] | None = None) -> SecurityPolicy:
+    """The policy a component should use when the caller did not pass one.
+
+    Identical to the strict default *unless* one of the documented
+    ``MINIPCAI_*`` escape hatches is set in the environment; that keeps the
+    CLI, the desktop UI and direct library calls (``Registry.load(path)``)
+    consistent instead of having each entry point decide on its own.
+    """
+    return policy_from_env(environ)
+
+
 def policy_from_env(environ: dict[str, str] | None = None) -> SecurityPolicy:
     """Build the policy from environment overrides (documented escape hatches).
 

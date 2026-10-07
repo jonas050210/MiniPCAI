@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from minipcai.policy import (
@@ -163,6 +165,63 @@ class TestPolicyFromEnv:
         policy = default_policy()
         assert policy.enforce_trusted_app_roots is True
         assert policy.allowed_file_extensions is None
+
+
+class TestEffectivePolicy:
+    """Components that construct their own policy must agree with the CLI.
+
+    Regression guard for the Windows CI failure: ``Registry.load(path)`` without
+    an explicit policy used the bare default, so the documented escape hatches
+    worked on the command line but not in library calls.
+    """
+
+    def test_without_escape_hatches_it_is_the_strict_default(self, monkeypatch):
+        from minipcai.policy import DEFAULT_POLICY, effective_policy
+
+        for name in (
+            "MINIPCAI_ALLOW_UNTRUSTED_APPS",
+            "MINIPCAI_NO_CONFIRM",
+            "MINIPCAI_EXTRA_TRUSTED_ROOTS",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        assert effective_policy() is DEFAULT_POLICY
+
+    def test_registry_load_honours_the_extra_root(self, tmp_path, monkeypatch):
+        from minipcai.registry import Registry
+
+        monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", str(tmp_path))
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "apps": [
+                        {
+                            "id": "tool",
+                            "aliases": ["tool"],
+                            "executable": str(tmp_path / "tool.exe"),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        registry = Registry.load(path)  # no explicit policy
+        assert registry.by_id("tool").target.endswith("tool.exe")
+        assert registry.policy.is_trusted_app_path(str(tmp_path / "tool.exe"))
+
+    def test_settings_to_policy_honours_the_escape_hatches(self, monkeypatch):
+        from minipcai.settings import Settings
+
+        monkeypatch.setenv("MINIPCAI_ALLOW_UNTRUSTED_APPS", "1")
+        monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", r"C:\tools")
+        policy = Settings().to_policy()
+        assert policy.enforce_trusted_app_roots is False
+        assert policy.is_trusted_app_path(r"C:\tools\a.exe")
+        # confirmations stay a settings concern: MINIPCAI_NO_CONFIRM maps to
+        # ``auto_confirm`` in ``Settings.apply_environment``.
+        default = Settings()
+        assert policy.confirm_intents == frozenset(default.confirm_intents)
 
 
 class TestLooksLikePath:

@@ -17,7 +17,7 @@ from typing import Any
 
 from minipcai import paths
 from minipcai.config import LANGUAGES, Thresholds
-from minipcai.policy import DEFAULT_CONFIRM_INTENTS, SecurityPolicy
+from minipcai.policy import DEFAULT_CONFIRM_INTENTS, SecurityPolicy, policy_from_env
 
 try:  # Python 3.11+
     import tomllib
@@ -51,10 +51,16 @@ class Settings:
 
     # -- derived -------------------------------------------------------------
     def to_policy(self) -> SecurityPolicy:
-        policy = SecurityPolicy(
+        # The environment escape hatches (MINIPCAI_ALLOW_UNTRUSTED_APPS,
+        # MINIPCAI_EXTRA_TRUSTED_ROOTS) apply here as well, so a directly
+        # constructed Settings behaves like one loaded from the CLI.
+        # Confirmations are a settings concern: MINIPCAI_NO_CONFIRM maps to
+        # ``auto_confirm`` in ``apply_environment``.
+        base = policy_from_env()
+        policy = replace(
+            base,
             confirm_intents=frozenset(self.confirm_intents),
-            trusted_app_roots=SecurityPolicy().trusted_app_roots
-            + tuple(self.extra_trusted_roots),
+            trusted_app_roots=base.trusted_app_roots + tuple(self.extra_trusted_roots),
             max_active_timers=self.max_active_timers,
         )
         if self.allow_untrusted_apps:

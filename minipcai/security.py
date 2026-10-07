@@ -34,7 +34,12 @@ from minipcai.config import (
     WEB_SEARCH_MAX_QUERY_LENGTH,
 )
 from minipcai.intents import ACTION_INTENTS, TARGETED_INTENTS
-from minipcai.policy import SecurityPolicy, default_policy, executable_name, expand_env
+from minipcai.policy import (
+    SecurityPolicy,
+    effective_policy,
+    executable_name,
+    expand_env,
+)
 from minipcai.registry import Registry
 from minipcai.targets import ActionPlan
 
@@ -98,7 +103,7 @@ class SecurityValidator:
 
     def __init__(self, registry: Registry, policy: SecurityPolicy | None = None):
         self._registry = registry
-        self._policy = policy or registry.policy or default_policy()
+        self._policy = policy or registry.policy or effective_policy()
 
     @property
     def registry(self) -> Registry:

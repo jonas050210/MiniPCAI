@@ -184,6 +184,9 @@ Settings precedence: **command line > environment (`MINIPCAI_*`) > `config.toml`
 Documented environment variables: `MINIPCAI_REGISTRY`, `MINIPCAI_MODEL`, `MINIPCAI_MODELS_DIR`,
 `MINIPCAI_AUDIT`, `MINIPCAI_LANGUAGE`, `MINIPCAI_EXECUTOR`, `MINIPCAI_NO_CONFIRM`,
 `MINIPCAI_PRIVACY_AUDIT`, `MINIPCAI_ALLOW_UNTRUSTED_APPS`, `MINIPCAI_EXTRA_TRUSTED_ROOTS`.
+The policy escape hatches apply to every entry point - the CLI, the desktop UI
+and direct library calls (`Registry.load`) all resolve an unspecified policy the
+same way.
 
 ## Training, evaluation and artifacts
 

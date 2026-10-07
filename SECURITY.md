@@ -61,10 +61,14 @@ again at execution time:
 Applications must live under a trusted root (`%ProgramFiles%`,
 `%ProgramFiles(x86)%`, `%SystemRoot%\System32`, `%SystemRoot%`, `%ProgramData%`,
 `%LOCALAPPDATA%\Programs`, `%LOCALAPPDATA%\Microsoft\WindowsApps`) unless the
-deployment explicitly opts out with `MINIPCAI_ALLOW_UNTRUSTED_APPS=1` or
-`--allow-untrusted`. On machines where a placeholder cannot be expanded (a
-Linux CI box validating a Windows registry) well-documented literal locations
-are used instead of skipping the check.
+deployment explicitly opts out with `MINIPCAI_ALLOW_UNTRUSTED_APPS=1` (or
+`MINIPCAI_EXTRA_TRUSTED_ROOTS`, or `--allow-untrusted`). The escape hatches are
+honoured consistently: wherever a component has to pick a policy on its own
+(``Registry.load``, the request guard, ``Settings.to_policy``) it uses the
+environment-aware policy, so a path approved in the configuration is approved
+everywhere. On machines where a placeholder cannot be expanded (a Linux CI box
+validating a Windows registry) well-documented literal locations are used
+instead of skipping the check.
 
 Optional integrity pinning: `"sha256": "…"` on an app entry, or an
 `executable_hashes` map in the policy, pins the binary that is allowed to run.

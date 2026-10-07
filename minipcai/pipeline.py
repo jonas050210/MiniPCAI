@@ -50,7 +50,7 @@ from minipcai.paths import resolve_registry_path
 from minipcai.policy import (
     SecurityPolicy,
     contains_shell_syntax,
-    default_policy,
+    effective_policy,
     looks_like_path,
 )
 from minipcai.registry import Registry
@@ -205,7 +205,7 @@ class Assistant:
         self.executor = executor
         self.audit = audit
         self.thresholds = thresholds or Thresholds()
-        self.policy = policy or registry.policy or default_policy()
+        self.policy = policy or registry.policy or effective_policy()
         self.language = i18n.normalize_language(language)
         self.auto_confirm = bool(auto_confirm)
         self._validator = SecurityValidator(registry, self.policy)

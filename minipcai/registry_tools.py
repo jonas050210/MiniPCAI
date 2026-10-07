@@ -18,7 +18,7 @@ from pathlib import Path
 from minipcai import paths
 from minipcai.policy import (
     SecurityPolicy,
-    default_policy,
+    effective_policy,
     executable_name,
     expand_env,
     policy_from_env,
@@ -226,7 +226,7 @@ def _write_and_validate(
 ) -> int:
     """Validate the edited registry, then write it atomically."""
     try:
-        registry = Registry.load_from_dict(data, path=path, policy=policy or default_policy())
+        registry = Registry.load_from_dict(data, path=path, policy=policy or effective_policy())
     except RegistryError as exc:
         print(f"Error: the edited registry would be invalid: {exc}", file=sys.stderr)
         return 2
