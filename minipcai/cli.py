@@ -379,6 +379,8 @@ def _cmd_setup(args: argparse.Namespace) -> int:
         settings.executor_mode = args.executor
     if args.private_audit:
         settings.store_text_in_audit = False
+    if args.models_dir is not None:
+        settings.models_dir = str(args.models_dir)
 
     state = paths.state_dir()
     state.mkdir(parents=True, exist_ok=True)
@@ -402,11 +404,20 @@ def _cmd_setup(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001 - CLI boundary
             print(f"Training failed: {exc}", file=sys.stderr)
             return 2
-    code, report = doctor.run(settings=settings, check_files=not args.no_file_check)
+    checks = doctor.run_checks(settings=settings, check_files=not args.no_file_check)
     print()
-    print(report)
-    print("\nNext steps: 'minipcai train' (if not trained yet), then 'minipcai ui'.")
-    return code
+    print(doctor.format_report(checks))
+    # A fresh installation has no trained model yet - that is a next step, not a
+    # failure, so `minipcai setup` stays usable in scripts.
+    blocking = [
+        check for check in checks
+        if check.status == doctor.FAIL and check.name != "model"
+    ]
+    if any(check.name == "model" and check.status == doctor.FAIL for check in checks):
+        print("\nNext step: 'minipcai train', then 'minipcai ui'.")
+    else:
+        print("\nNext steps: 'minipcai train' (if not trained yet), then 'minipcai ui'.")
+    return 1 if blocking else 0
 
 
 def _cmd_ui(args: argparse.Namespace) -> int:
@@ -502,6 +513,8 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument("--force", action="store_true",
                        help="overwrite an existing user registry with the default one")
     setup.add_argument("--train", action="store_true", help="train the model as well")
+    setup.add_argument("--models-dir", type=Path, default=None,
+                       help="where the trained model is written (default: per-user)")
     setup.add_argument("--language", choices=list(LANGUAGES), default=None)
     setup.add_argument("--executor", choices=list(EXECUTOR_MODES), default=None)
     setup.add_argument("--private-audit", action="store_true",

@@ -70,16 +70,28 @@ def main(argv: list[str] | None = None) -> int:
         # A clean HOME makes the "first run" path realistic and keeps the test
         # from touching the developer's own ~/.minipcai.
         env["HOME"] = str(tmp_path / "home")
+        if args.reuse_site_packages:
+            # ``venv --system-site-packages`` only exposes the *base*
+            # interpreter's packages, which is empty in a sandbox. Forwarding
+            # this interpreter's site-packages keeps the run usable offline.
+            site_packages = [
+                path for path in sys.path
+                if path.endswith(("site-packages", "dist-packages"))
+            ]
+            if site_packages:
+                env["PYTHONPATH"] = os.pathsep.join(site_packages)
         env["USERPROFILE"] = env["HOME"]
         env["LOCALAPPDATA"] = str(tmp_path / "home" / "AppData" / "Local")
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         env.pop("MINIPCAI_REGISTRY", None)
         env.pop("MINIPCAI_MODEL", None)
 
-        install = _run([python, "-m", "pip", "install", "--no-deps", wheel], tmp_path, env)
+        install_command = [python, "-m", "pip", "install"]
+        if args.reuse_site_packages:
+            install_command.append("--no-deps")  # provided by PYTHONPATH above
+        install_command.append(str(wheel))
+        install = _run(install_command, tmp_path, env)
         if install.returncode != 0:
-            # Dependencies are provided by the interpreter (--reuse-site-packages)
-            # or already present; a real install failure is reported below.
             print(install.stdout[-2000:])
             print(install.stderr[-2000:], file=sys.stderr)
             return 1

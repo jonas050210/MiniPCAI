@@ -47,10 +47,12 @@ jobs:
         run: pip install -e ".[dev,gui]"
       - name: Run the test suite
         if: runner.os != 'Linux'
-        run: pytest -q
+        shell: bash
+        run: bash scripts/ci_pytest.sh
       - name: Run the test suite (headless Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a pytest -q
+        shell: bash
+        run: bash scripts/ci_pytest.sh xvfb-run -a
       - name: Dataset fingerprint
         run: python scripts/check_dataset_fingerprint.py
       - name: Train the model (for the quality gate)

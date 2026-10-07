@@ -66,6 +66,7 @@ pip install -e ".[dev,gui]"           # omit [gui] to skip the desktop UI
 
 minipcai setup                        # per-user registry + config (~/.minipcai or %LOCALAPPDATA%\MiniPCAI)
 minipcai train                        # trains models/model.joblib from the packaged dataset
+                                      # (or: minipcai setup --train --models-dir DIR)
 minipcai doctor                       # self-check: registry, model, audit, policy, GUI
 minipcai ask "öffne notepad"          # dry-run: describes what it would do
 minipcai ask "schließe firefox" --yes # confirmation is required, --yes is the script escape hatch
@@ -86,6 +87,9 @@ minipcai audit --limit 50 --json        # what happened
 minipcai audit --verify                 # hash chain intact?
 minipcai --version
 ```
+
+`minipcai setup` succeeds on a blank machine and points at the training step -
+a not-yet-trained model is a next step, not an error.
 
 ## Quality gates
 

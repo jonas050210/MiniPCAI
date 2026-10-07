@@ -8,12 +8,18 @@ the defect "installed MiniPCAI ships no data" cannot come back unnoticed.
 from __future__ import annotations
 
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-import tomllib
+
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+    import tomli as tomllib
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -104,10 +110,15 @@ class TestNoCheckoutDependency:
             "Registry.load(reg);"
             "print(json.dumps({'registry': str(reg), 'dataset': ds.name}))"
         )
+        # Windows needs the inherited environment (SYSTEMROOT etc.) for the
+        # interpreter to start at all; the point of the test is that nothing
+        # from the repository checkout is on the path by accident.
+        env = dict(os.environ, PYTHONPATH=str(REPO_ROOT), PYTHONDONTWRITEBYTECODE="1")
+        env.pop("PYTHONHOME", None)
         result = subprocess.run(
             [sys.executable, "-c", probe],
             cwd=str(tmp_path),
-            env={"PYTHONPATH": str(REPO_ROOT), "PATH": "", "PYTHONDONTWRITEBYTECODE": "1"},
+            env=env,
             capture_output=True,
             text=True,
             check=False,
@@ -118,10 +129,25 @@ class TestNoCheckoutDependency:
         assert payload["dataset"].startswith("intent_dataset.v")
 
     def test_scripts_referenced_by_ci_exist(self):
-        for name in (
+        """Whatever the workflow calls must exist (and stay callable)."""
+        text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        referenced = set(re.findall(r"scripts/([\w.-]+\.(?:py|sh))", text))
+        expected = {
             "check_dataset_fingerprint.py",
             "check_wheel_contents.py",
             "smoke_installed.py",
-            "generate_dataset.py",
-        ):
+            "ci_pytest.sh",
+        }
+        assert expected <= referenced, referenced
+        for name in sorted(referenced):
             assert (REPO_ROOT / "scripts" / name).is_file(), name
+
+    def test_ci_reports_failures_as_annotations(self):
+        """Broken tests must be readable without the raw (often unreachable) log."""
+        text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        assert "::error::" in (REPO_ROOT / "scripts" / "ci_pytest.sh").read_text(
+            encoding="utf-8"
+        )
+        assert "ci_pytest.sh" in text
+        for os_name in ("ubuntu-latest", "windows-latest"):
+            assert os_name in text

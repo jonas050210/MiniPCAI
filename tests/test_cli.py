@@ -335,3 +335,29 @@ class TestUiCommand:
         from minipcai.ui import gui_available
 
         assert isinstance(gui_available(), bool)
+
+
+class TestFirstRunExperience:
+    """`minipcai setup` on a blank machine must succeed and point at training."""
+
+    def test_setup_without_a_model_exits_zero_and_hints_training(
+        self, capsys, monkeypatch, tmp_path
+    ):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        code = main(["setup", "--no-file-check"])
+        out = capsys.readouterr().out
+        assert code == 0, out
+        assert "minipcai train" in out
+
+    def test_setup_with_a_missing_model_trains_it(self, monkeypatch, tmp_path):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        code = main([
+            "setup", "--no-file-check", "--train",
+            "--models-dir", str(tmp_path / "models"),
+        ])
+        assert code == 0
+        assert (tmp_path / "models" / "model.joblib").is_file()
