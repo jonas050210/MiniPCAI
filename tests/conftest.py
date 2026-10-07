@@ -21,6 +21,19 @@ def trained_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture()
+def permissive_policy():
+    """A policy without the trusted-app-root allowlist.
+
+    Used by tests that exercise registry *validation* rules (duplicate ids,
+    forbidden file types, ...) with Windows-shaped fixture paths that do not
+    exist in a trusted location on the test machine.
+    """
+    from minipcai.policy import default_policy
+
+    return default_policy().allow_untrusted_app_paths()
+
+
+@pytest.fixture()
 def registry_factory(tmp_path: Path):
     """Build a small, valid registry rooted in a temp directory.
 
@@ -80,22 +93,45 @@ def registry_factory(tmp_path: Path):
 
 @pytest.fixture()
 def make_assistant(trained_model: Path, registry_factory, tmp_path: Path):
-    """Factory building an Assistant wired for tests (dry-run by default)."""
+    """Factory building an Assistant wired for tests (dry-run by default).
 
-    def make(executor_mode: str = "dry-run", registry_path: Path | None = None,
-             audit_path: Path | None = None):
+    ``auto_confirm`` defaults to True here because the confirmation flow has
+    dedicated tests (``tests/test_pipeline.py::TestConfirmation``,
+    ``tests/test_service.py``); the *shipped* default is False, i.e. closing an
+    application and web searches ask first.
+    """
+
+    def make(
+        executor_mode: str = "dry-run",
+        registry_path: Path | None = None,
+        audit_path: Path | None = None,
+        policy=None,
+        auto_confirm: bool = True,
+        language: str = "en",
+        store_text: bool = True,
+        registry_policy=None,
+    ):
         from minipcai.actions import DryRunExecutor, WindowsExecutor
         from minipcai.audit import AuditLogger
         from minipcai.config import Thresholds
         from minipcai.model import SklearnIntentClassifier
         from minipcai.pipeline import Assistant
+        from minipcai.policy import default_policy
         from minipcai.registry import Registry
 
         model = SklearnIntentClassifier.load(trained_model)
-        registry = Registry.load(registry_path or registry_factory())
-        audit = AuditLogger(audit_path or tmp_path / "audit.jsonl")
+        registry = Registry.load(
+            registry_path or registry_factory(),
+            policy=policy or registry_policy,
+        )
+        effective_policy = policy or registry.policy or default_policy()
+        audit = AuditLogger(audit_path or tmp_path / "audit.jsonl", store_text=store_text)
         executor = (
-            WindowsExecutor(audit=audit) if executor_mode == "windows" else DryRunExecutor()
+            WindowsExecutor(
+                audit=audit, max_active_timers=effective_policy.max_active_timers
+            )
+            if executor_mode == "windows"
+            else DryRunExecutor(max_active_timers=effective_policy.max_active_timers)
         )
         stored = model.metadata.get("thresholds", {})
         thresholds = Thresholds(
@@ -108,6 +144,9 @@ def make_assistant(trained_model: Path, registry_factory, tmp_path: Path):
             executor=executor,
             audit=audit,
             thresholds=thresholds,
+            policy=policy,
+            language=language,
+            auto_confirm=auto_confirm,
         )
 
     return make

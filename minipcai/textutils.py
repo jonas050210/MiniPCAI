@@ -3,11 +3,27 @@
 All helpers are pure functions without side effects. They operate on German
 user input and produce validated, structured values that downstream components
 (security, executors) can rely on.
+
+Three normalizations exist on purpose:
+
+``normalize``
+    Unicode NFC, lowercase, punctuation removed, whitespace collapsed. This is
+    the "human readable" form used for search terms and error messages.
+``fold``
+    Like ``normalize``, but additionally folds umlauts/ß and strips every
+    diacritic, so ``"öffne"``, ``"oeffne"`` and NFD-encoded ``"o\u0308ffne"``
+    all collapse to the same key. Used for alias matching only, so that a
+    registry written in NFC still matches keyboard layouts and mail clients
+    that emit NFD.
+``normalize_for_model``
+    Like ``normalize`` but keeps arithmetic operators, used as the vectorizer
+    preprocessor so that ``"12*4"`` survives while punctuation/casing does not.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _WORD_RE = re.compile(r"[^\w\s]+", re.UNICODE)  # \w includes umlauts and sz in Python 3
 _SPACES_RE = re.compile(r"\s+")
@@ -16,11 +32,38 @@ _SPACES_RE = re.compile(r"\s+")
 # recognizable ("was ist 12*4" must not become "was ist 12 4").
 _MODEL_KEEP_RE = re.compile(r"[^\w\s+\-*/%().]+", re.UNICODE)
 
+# Fold table for alias matching: German umlauts/ß plus a few common Latin
+# letters that appear in product names ("Ø", "Å").
+_FOLD_TABLE = str.maketrans(
+    {"ä": "a", "ö": "o", "ü": "u", "ß": "ss", "å": "a", "æ": "ae", "ø": "o", "œ": "oe"}
+)
+
+
+def to_nfc(text: str) -> str:
+    """Return the NFC (composed) form of ``text``.
+
+    Windows input arrives in whatever form the keyboard/browser produced:
+    an emoji picker, a mail client or a copy/paste from macOS can deliver NFD
+    (``o`` + combining diaeresis), which would otherwise be stripped as
+    "punctuation" and turn ``"öffne"`` into ``"o ffne"``.
+    """
+    return unicodedata.normalize("NFC", text)
+
 
 def normalize(text: str) -> str:
     """Lowercase, strip punctuation and collapse whitespace."""
-    text = _WORD_RE.sub(" ", text.lower())
+    text = _WORD_RE.sub(" ", to_nfc(text).lower())
     return _SPACES_RE.sub(" ", text).strip()
+
+
+def fold(text: str) -> str:
+    """Canonical alias key: case-, accent- and punctuation-insensitive."""
+    folded = normalize(text).translate(_FOLD_TABLE)
+    # Drop remaining diacritics that survived NFC (e.g. "ć"), then collapse
+    # any whitespace the decomposition introduced.
+    decomposed = unicodedata.normalize("NFD", folded)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return _SPACES_RE.sub(" ", stripped).strip()
 
 
 def normalize_for_model(text: str) -> str:
@@ -30,7 +73,7 @@ def normalize_for_model(text: str) -> str:
     variants of a request map to the same features, while calculator requests
     keep their operators for the character n-grams.
     """
-    text = _MODEL_KEEP_RE.sub(" ", text.lower())
+    text = _MODEL_KEEP_RE.sub(" ", to_nfc(text).lower())
     return _SPACES_RE.sub(" ", text).strip()
 
 
@@ -234,3 +277,70 @@ def extract_search_term(text: str) -> str:
     """
     tokens = [t for t in normalize(text).split() if t not in _SEARCH_STOP_TOKENS]
     return " ".join(tokens)
+
+
+# ---------------------------------------------------------------------------
+# web_search queries
+# ---------------------------------------------------------------------------
+
+# Words that only introduce a web search and carry no search meaning.
+_WEB_SEARCH_STOP_TOKENS = frozenset(
+    {
+        "suche", "such", "suchst", "sucht", "durchsuche", "recherchiere",
+        "im", "in", "dem", "der", "den", "das", "die", "ein", "eine", "einen",
+        "nach", "web", "internet", "websuche", "online", "netz", "google",
+        "bitte", "mal", "mach", "mir", "bei", "auf", "für", "fuer", "und",
+        "was", "ist", "sind", "über", "ueber", "zu", "zum", "zur", "von",
+        "the", "and", "search", "for", "about",
+    }
+)
+
+
+# Words that must be present for a *default* web search. Without one of them a
+# request is not a search - "hallo" must not silently become "search the web
+# for hallo".
+_WEB_SEARCH_TRIGGERS = frozenset(
+    {
+        "suche", "such", "suchst", "sucht", "durchsuche", "recherchiere",
+        "recherche", "googeln", "google", "internet", "web", "websuche",
+        "online", "nachschlagen", "schau", "guck",
+    }
+)
+
+
+def has_web_search_trigger(text: str) -> bool:
+    """True when the text explicitly asks for a web search."""
+    tokens = set(normalize(text).split())
+    return bool(tokens & _WEB_SEARCH_TRIGGERS)
+
+
+def extract_web_query(text: str, strip_aliases: tuple[str, ...] = ()) -> str:
+    """Extract the search query of a "search the web" request.
+
+    ``strip_aliases`` are registry aliases (e.g. the name of the search
+    provider) that are removed from the query. Matching happens on the folded
+    text, but the *original* characters are returned, so ``"Bäume"`` stays
+    ``"Bäume"`` instead of becoming ``"baume"``.
+    """
+    tokens = normalize(text).split()
+    if not tokens:
+        return ""
+    folded = [fold(token) for token in tokens]
+    drop = [False] * len(tokens)
+
+    for alias in strip_aliases:
+        parts = fold(alias).split()
+        if not parts:
+            continue
+        width = len(parts)
+        for start in range(len(folded) - width + 1):
+            if folded[start : start + width] == parts:
+                for index in range(start, start + width):
+                    drop[index] = True
+
+    for index, _token in enumerate(tokens):
+        if folded[index] in _WEB_SEARCH_STOP_TOKENS:
+            drop[index] = True
+
+    return " ".join(token for token, dropped in zip(tokens, drop, strict=True) if not dropped)
+

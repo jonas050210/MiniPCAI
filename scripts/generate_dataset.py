@@ -39,10 +39,92 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 from collections import Counter
 from pathlib import Path
 
-DATASET_VERSION = 2
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:  # allow `python scripts/generate_dataset.py`
+    sys.path.insert(0, str(REPO_ROOT))
+
+DATASET_VERSION = 3
+
+# ---------------------------------------------------------------------------
+# Registry-driven synthesis
+#
+# The dataset must only teach targets that the registry can actually resolve:
+# training on "starte word" while the registry has no `word` entry produces a
+# confident classifier and a user-visible rejection. The generator therefore
+# reads the shipped registry and
+#   * keeps only handwritten examples that resolve to exactly one entry,
+#   * synthesizes additional phrasings from the registered aliases,
+#   * drops "unknown" examples that became resolvable (e.g. web search).
+# ---------------------------------------------------------------------------
+
+# Phrasings per registry section: templates use ``{alias}`` and ``{id}``.
+_SYNTH_TEMPLATES: dict[str, tuple[str, ...]] = {
+    "apps": (
+        "öffne {alias}", "starte {alias}", "mach {alias} auf", "{alias} öffnen",
+        "{alias} starten", "öffne bitte {alias}", "kannst du {alias} starten",
+        "ich möchte {alias} öffnen", "starte {alias} bitte", "öffne mal {alias}",
+    ),
+    "files": (
+        "öffne {alias}", "öffne die datei {alias}", "zeig mir {alias}",
+        "öffne mir {alias}", "mach {alias} auf", "öffne die {alias}",
+        "{alias} öffnen", "kannst du {alias} aufmachen",
+    ),
+    "folders": (
+        "öffne {alias}", "öffne den ordner {alias}", "mach {alias} auf",
+        "zeig mir {alias}", "öffne mir bitte {alias}", "{alias} öffnen",
+        "geh in {alias}",
+    ),
+    "websites": (
+        "öffne {alias}", "geh auf {alias}", "zeig mir {alias}",
+        "öffne die webseite {alias}", "bring mich zu {alias}", "starte {alias}",
+        "{alias} öffnen", "öffne mal {alias}",
+    ),
+}
+
+_SYNTH_CLOSE_TEMPLATES: tuple[str, ...] = (
+    "schließe {alias}", "beende {alias}", "mach {alias} zu", "{alias} schließen",
+    "beende {alias} bitte", "stoppe {alias}", "{alias} beenden", "mach {alias} zu bitte",
+)
+
+# Queries for synthesized web searches (never a registered alias, so the query
+# extractor cannot mistake them for a target).
+_WEB_QUERY_POOL: tuple[str, ...] = (
+    "katzenbilder", "wetter morgen", "rezept für pizza", "urlaub in italien",
+    "python tutorial", "was ist eine ki", "bahnverbindung nach berlin",
+    "gute filme 2026", "wechselkurs euro dollar", "symptome einer erkältung",
+)
+
+_WEB_SEARCH_TEMPLATES: tuple[str, ...] = (
+    "suche nach {query}",
+    "suche im internet nach {query}",
+    "google nach {query}",
+    "recherchiere {query}",
+    "such mir {query}",
+    "finde im internet {query}",
+    "ich möchte etwas über {query} wissen",
+    "kannst du nach {query} suchen",
+    "websuche {query}",
+    "schau im internet nach {query}",
+)
+
+_WEB_SEARCH_PROVIDER_TEMPLATES: tuple[str, ...] = (
+    "{alias} nach {query}",
+    "suche mit {alias} nach {query}",
+    "{alias} suche nach {query}",
+)
+
+# Handwritten typo variants for the web-search intent.
+WEB_SEARCH_TYPOS: tuple[str, ...] = (
+    "suche im intenet nach katzenbildern",
+    "google nach wetter mrogen",
+    "recherchire rezept für pizza",
+    "such nach urlaub in italin",
+    "websuche nach pyton tutorial",
+)
 
 # ---------------------------------------------------------------------------
 # Handwritten German example utterances per action intent (category "normal")
@@ -1521,6 +1603,98 @@ EXTRA_AMBIGUOUS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Registry access
+# ---------------------------------------------------------------------------
+
+
+def load_registry():
+    """Load the packaged registry with the default security policy."""
+    from minipcai.paths import packaged_registry_path
+    from minipcai.policy import default_policy
+    from minipcai.registry import Registry
+
+    return Registry.load(packaged_registry_path(), policy=default_policy())
+
+
+def section_for_label(label: str) -> str | None:
+    from minipcai.intents import TARGETED_INTENTS
+
+    return TARGETED_INTENTS.get(label)
+
+
+def resolves_to_one(registry, text: str, section: str) -> bool:
+    """True when exactly one registry entry of ``section`` matches ``text``."""
+    return len(registry.find_matches(text, section)) == 1
+
+
+def is_web_search(registry, text: str) -> bool:
+    from minipcai.targets import TargetError, resolve_target
+
+    try:
+        resolve_target("web_search", text, registry)
+        return True
+    except TargetError:
+        return False
+
+
+def registry_driven_normal_examples(registry) -> dict[str, list[str]]:
+    """Synthesize in-scope examples from the registered aliases."""
+    examples: dict[str, list[str]] = {}
+    section_to_label = {
+        "apps": "open_app",
+        "files": "open_file",
+        "folders": "open_folder",
+        "websites": "open_url",
+    }
+    for section, label in section_to_label.items():
+        texts: list[str] = []
+        for entry in registry.section(section):
+            for alias in entry.aliases:
+                for template in _SYNTH_TEMPLATES[section]:
+                    texts.append(template.format(alias=alias, id=entry.id))
+        examples[label] = texts
+    close_texts: list[str] = []
+    for entry in registry.section("apps"):
+        for alias in entry.aliases:
+            for template in _SYNTH_CLOSE_TEMPLATES:
+                close_texts.append(template.format(alias=alias, id=entry.id))
+    examples["close_app"] = close_texts
+
+    search_texts: list[str] = []
+    for query in _WEB_QUERY_POOL:
+        for template in _WEB_SEARCH_TEMPLATES:
+            search_texts.append(template.format(query=query))
+    for entry in registry.section("searchers"):
+        for alias in entry.aliases:
+            for query in _WEB_QUERY_POOL[:4]:
+                for template in _WEB_SEARCH_PROVIDER_TEMPLATES:
+                    search_texts.append(template.format(alias=alias, query=query))
+    examples["web_search"] = search_texts
+    return examples
+
+
+def filter_resolvable(
+    examples: dict[str, list[str]], registry
+) -> tuple[dict[str, list[str]], list[str]]:
+    """Drop handwritten examples whose target is not in the registry."""
+    kept: dict[str, list[str]] = {}
+    dropped: list[str] = []
+    for label, texts in examples.items():
+        section = section_for_label(label)
+        if section is None:
+            kept[label] = list(texts)
+            continue
+        keep: list[str] = []
+        for text in texts:
+            if resolves_to_one(registry, text, section):
+                keep.append(text)
+            else:
+                dropped.append(text)
+        kept[label] = keep
+    return kept, dropped
+
+
+# ---------------------------------------------------------------------------
 # Deterministic typo augmentation
 # ---------------------------------------------------------------------------
 
@@ -1594,12 +1768,41 @@ def merged_examples() -> tuple[
         label: list(HANDWRITTEN_TYPOS[label]) + EXTRA_HANDWRITTEN_TYPOS.get(label, [])
         for label in NORMAL_EXAMPLES
     }
-    return (
-        normal_examples,
-        handwritten_typos,
-        UNKNOWN_NORMAL + EXTRA_UNKNOWN,
-        AMBIGUOUS_EXAMPLES + EXTRA_AMBIGUOUS,
-    )
+    handwritten_typos["web_search"] = list(WEB_SEARCH_TYPOS)
+
+    registry = load_registry()
+    normal_examples, dropped = filter_resolvable(normal_examples, registry)
+    handwritten_typos, dropped_typos = filter_resolvable(handwritten_typos, registry)
+    _report_dropped(dropped + dropped_typos)
+
+    # Add registry-synthesized phrasings (deduplicated, order preserving).
+    synthesized = registry_driven_normal_examples(registry)
+    for label, texts in synthesized.items():
+        existing = set(normal_examples.get(label, []))
+        merged = list(normal_examples.get(label, []))
+        for text in texts:
+            normalized = " ".join(text.split())
+            if normalized not in existing:
+                merged.append(normalized)
+                existing.add(normalized)
+        normal_examples[label] = merged
+
+    handwritten_typos["web_search"] = list(WEB_SEARCH_TYPOS)
+    unknown = [text for text in UNKNOWN_NORMAL + EXTRA_UNKNOWN
+               if not is_web_search(registry, text)]
+    ambiguous = list(AMBIGUOUS_EXAMPLES + EXTRA_AMBIGUOUS)
+    for label in ("web_search",):
+        if label not in normal_examples:
+            raise ValueError(f"no examples for label {label!r}")
+    return normal_examples, handwritten_typos, unknown, ambiguous
+
+
+def _report_dropped(dropped: list[str]) -> None:
+    if dropped and "--quiet" not in sys.argv:
+        print(
+            f"[generator] dropped {len(dropped)} example(s) whose target is not in "
+            "the registry (dataset/registry agreement)"
+        )
 
 
 def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
@@ -1626,7 +1829,7 @@ def build_rows(seed: int = 42, typo_fraction: float = 0.22) -> list[dict]:
     for label, examples in normal_examples.items():
         for text in examples:
             add(label, text, "normal")
-        for text in handwritten_typos[label]:
+        for text in handwritten_typos.get(label, []):
             add(label, text, "typo")
         base = [(label, text) for text in examples]
         label_seed = seed + sum(ord(char) for char in label)
@@ -1656,7 +1859,7 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=(Path(__file__).resolve().parent.parent / "data"
+        default=(REPO_ROOT / "minipcai" / "data"
                  / f"intent_dataset.v{DATASET_VERSION}.jsonl"),
     )
     parser.add_argument("--seed", type=int, default=42)

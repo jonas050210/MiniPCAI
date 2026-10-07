@@ -366,3 +366,136 @@ class TestResultObject:
 
     def test_assistant_is_assistant_instance(self, make_assistant):
         assert isinstance(make_assistant(), Assistant)
+
+
+class TestPathGuard:
+    """A request that spells out a filesystem path never reaches the model."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"öffne C:\Users\hacker\secrets.txt",
+            "öffne /etc/passwd",
+            "finde ../../etc/passwd",
+            r"starte %SystemRoot%\System32\cmd.exe",
+        ],
+    )
+    def test_path_like_requests_are_rejected(self, make_assistant, text):
+        assistant = make_assistant()
+        result = assistant.handle(text)
+        assert result.status == "rejected"
+        assert result.reason == "target_not_found"
+        assert result.details.get("path_like") is True
+        assert assistant.executor.plans == []
+
+    @pytest.mark.parametrize("text", ["was ist 1/2", "öffne notepad"])
+    def test_fractions_and_names_still_work(self, make_assistant, text):
+        assert make_assistant().handle(text).status == "ok"
+
+
+class TestClosureOfRejections:
+    def test_every_rejection_carries_a_reason_and_a_message(self, make_assistant):
+        assistant = make_assistant()
+        for text in (
+            "wie wird das wetter morgen",
+            "öffne das",
+            "starte gimp",
+            "was ist 2**2**2**2**2",
+            r"öffne C:\x\y.txt",
+        ):
+            result = assistant.handle(text)
+            assert result.status in {"rejected", "confirmation_required"}, text
+            assert result.reason, text
+            assert result.message, text
+
+
+class TestPrivacyMode:
+    def test_request_texts_are_redacted_when_disabled(self, make_assistant, tmp_path):
+        audit_path = tmp_path / "private.jsonl"
+        assistant = make_assistant(audit_path=audit_path, store_text=False)
+        assistant.handle("öffne notepad")
+        raw = audit_path.read_text(encoding="utf-8")
+        assert "öffne notepad" not in raw
+        assert "[redacted]" in raw
+        assert "text_sha256" in raw
+
+    def test_plain_mode_keeps_the_text(self, make_assistant, tmp_path):
+        audit_path = tmp_path / "plain.jsonl"
+        assistant = make_assistant(audit_path=audit_path, store_text=True)
+        assistant.handle("öffne notepad")
+        assert "öffne notepad" in audit_path.read_text(encoding="utf-8")
+
+
+class TestConfirmationFlow:
+    @pytest.fixture()
+    def asking_assistant(self, make_assistant):
+        return make_assistant(auto_confirm=False)
+
+    def test_state_change_asks_and_executes_after_yes(self, asking_assistant):
+        assistant = asking_assistant
+        pending = assistant.handle("schließe notepad")
+        assert pending.status == "confirmation_required"
+        assert pending.details["pending_request_id"] == pending.request_id
+        assert assistant.executor.plans == []
+        done = assistant.confirm(pending.request_id, approved=True)
+        assert done.status == "ok"
+        assert assistant.executor.plans[-1].intent == "close_app"
+
+    def test_declining_does_not_execute(self, asking_assistant):
+        assistant = asking_assistant
+        pending = assistant.handle("schließe notepad")
+        result = assistant.confirm(pending.request_id, approved=False)
+        assert result.reason == "confirmation_declined"
+        assert assistant.executor.plans == []
+
+    def test_unknown_request_id_is_reported(self, asking_assistant):
+        result = asking_assistant.confirm("does-not-exist", approved=True)
+        assert result.reason == "confirmation_not_pending"
+
+    def test_auto_confirm_skips_the_question(self, make_assistant):
+        result = make_assistant(auto_confirm=True).handle("schließe notepad")
+        assert result.status == "ok"
+
+    def test_pending_confirmation_expires(self, make_assistant):
+        import time
+
+        from minipcai.policy import default_policy
+
+        assistant = make_assistant(
+            policy=default_policy().with_confirmation_timeout(0.01), auto_confirm=False
+        )
+        pending = assistant.handle("schließe notepad")
+        time.sleep(0.05)
+        result = assistant.confirm(pending.request_id, approved=True)
+        assert result.reason == "confirmation_not_pending"
+        assert assistant.executor.plans == []
+
+    def test_confirmations_are_recorded_in_the_audit_log(self, make_assistant, tmp_path):
+        from minipcai.audit import read_audit_events
+
+        audit_path = tmp_path / "confirm.jsonl"
+        assistant = make_assistant(audit_path=audit_path, auto_confirm=False)
+        pending = assistant.handle("schließe notepad")
+        assistant.confirm(pending.request_id, approved=True)
+        decisions = [
+            event["decision"]
+            for event in read_audit_events(audit_path)
+            if event["event"] == "confirmation"
+        ]
+        assert decisions == ["required", "approved"]
+
+
+class TestLanguage:
+    def test_german_answers(self, make_assistant):
+        result = make_assistant(language="de").handle("öffne notepad")
+        assert "notepad" in result.message
+        assert result.text("en") != result.message
+
+    def test_confirmation_and_rejection_are_localized(self, make_assistant):
+        assistant = make_assistant(language="de", auto_confirm=False)
+        pending = assistant.handle("schließe notepad")
+        assert "Bestätigung" in pending.message
+        assert "ja" in pending.message.lower()
+        rejected = assistant.handle("wie wird das wetter morgen")
+        assert rejected.status == "rejected"
+        assert rejected.text("de") == rejected.message

@@ -52,11 +52,13 @@ class TestSplits:
 
 class TestCalibration:
     def test_returns_thresholds_and_full_table(self, trained):
+        from minipcai.train import _CONFIDENCE_GRID, _MARGIN_GRID
+
         _, thresholds, _, table = trained
         assert isinstance(thresholds, Thresholds)
         assert 0.0 < thresholds.min_confidence < 1.0
         assert 0.0 < thresholds.min_margin < 1.0
-        assert len(table) == 9 * 6  # confidence grid x margin grid
+        assert len(table) == len(_CONFIDENCE_GRID) * len(_MARGIN_GRID)
 
     def test_chosen_thresholds_are_safe_on_validation(self, trained):
         classifier, thresholds, splits, _ = trained

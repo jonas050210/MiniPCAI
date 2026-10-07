@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import minipcai
-from minipcai.registry import Registry
+from minipcai.registry import Registry, RegistryError
 from minipcai.security import (
     SecurityError,
     SecurityValidator,
@@ -28,6 +28,16 @@ def validator(registry) -> SecurityValidator:
 
 def _entry(section: str, entry_id: str, target: str) -> RegistryEntry:
     return RegistryEntry(section=section, id=entry_id, aliases=(entry_id,), target=target)
+
+
+def _hand_edited_registry(entry: RegistryEntry) -> Registry:
+    """Build a registry that bypassed ``Registry.load`` validation.
+
+    Defense in depth: blocked executables and forbidden file types must be
+    refused by the *runtime* validator even when a hand-edited registry file
+    smuggled such a target past the loader-side checks.
+    """
+    return Registry(entries=(entry,), version=1, searchable_ids=frozenset())
 
 
 class TestValidPlans:
@@ -97,30 +107,51 @@ class TestRegistryProvenance:
             "C:\\tools\\rundll32.exe",
         ],
     )
-    def test_blocked_executables(self, registry_factory, executable):
-        registry = Registry.load(registry_factory(apps=[
-            {"id": "shell", "aliases": ["shell"], "executable": executable}
-        ]))
+    def test_blocked_executables(self, executable):
+        registry = _hand_edited_registry(_entry("apps", "shell", executable))
         validator = SecurityValidator(registry)
         with pytest.raises(SecurityError, match="blocked"):
             validator.validate_plan(ActionPlan(intent="open_app", entry=registry.by_id("shell")))
 
-    def test_blocked_check_is_case_insensitive(self, registry_factory):
-        registry = Registry.load(registry_factory(apps=[
-            {"id": "shell", "aliases": ["shell"],
-             "executable": "C:\\Windows\\System32\\CMD.EXE"}
-        ]))
+    def test_blocked_executables_are_already_refused_by_the_loader(
+        self, registry_factory, permissive_policy
+    ):
+        # The loader refuses them too, so a normal (validated) registry can
+        # never even contain a blocked executable.
+        with pytest.raises(RegistryError, match="blocked"):
+            Registry.load(
+                registry_factory(apps=[
+                    {"id": "shell", "aliases": ["shell"],
+                     "executable": "C:\\Windows\\System32\\cmd.exe"}
+                ]),
+                policy=permissive_policy,
+            )
+
+    def test_blocked_check_is_case_insensitive(self):
+        registry = _hand_edited_registry(
+            _entry("apps", "shell", "C:\\Windows\\System32\\CMD.EXE")
+        )
         validator = SecurityValidator(registry)
         with pytest.raises(SecurityError, match="blocked"):
             validator.validate_plan(ActionPlan(intent="open_app", entry=registry.by_id("shell")))
 
-    def test_non_exe_executable_rejected(self, registry_factory):
-        registry = Registry.load(registry_factory(apps=[
-            {"id": "script", "aliases": ["script"], "executable": "C:\\tools\\script.bat"}
-        ]))
+    def test_non_exe_executable_rejected(self):
+        registry = _hand_edited_registry(_entry("apps", "script", "C:\\tools\\script.bat"))
         validator = SecurityValidator(registry)
         with pytest.raises(SecurityError, match="must be an .exe"):
             validator.validate_plan(ActionPlan(intent="open_app", entry=registry.by_id("script")))
+
+    def test_non_exe_executable_rejected_by_the_loader(
+        self, registry_factory, permissive_policy
+    ):
+        with pytest.raises(RegistryError, match="must be an .exe"):
+            Registry.load(
+                registry_factory(apps=[
+                    {"id": "script", "aliases": ["script"],
+                     "executable": "C:\\tools\\script.bat"}
+                ]),
+                policy=permissive_policy,
+            )
 
     def test_missing_entry_rejected(self, validator):
         with pytest.raises(SecurityError, match="missing required data"):

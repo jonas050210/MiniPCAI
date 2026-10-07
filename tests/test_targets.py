@@ -141,3 +141,94 @@ class TestSystemIntents:
         plan = resolve_target(intent, "irgendein text", registry)
         assert plan.intent == intent
         assert plan.entry is None
+
+
+class TestWebSearch:
+    """The web-search intent only ever opens *registered* search providers."""
+
+    @pytest.fixture()
+    def search_registry(self, registry_factory):
+        from minipcai.registry import Registry
+
+        path = registry_factory(searchers=[
+            {"id": "google_search", "aliases": ["google", "websuche"],
+             "url_template": "https://www.google.com/search?q={query}"},
+        ])
+        return Registry.load(path)
+
+    def test_searcher_provider_resolves(self, search_registry):
+        from minipcai.actions import build_search_url
+
+        plan = resolve_target("web_search", "google nach katzen", search_registry)
+        assert plan.intent == "web_search"
+        assert plan.entry.id == "google_search"
+        assert plan.query == "katzen"
+        url = build_search_url(plan.entry.url_template, plan.query)
+        assert "{query}" not in url
+        assert url.startswith("https://www.google.com/search?q=")
+
+    def test_query_is_url_encoded_when_the_url_is_built(self, search_registry):
+        from minipcai.actions import build_search_url
+
+        plan = resolve_target("web_search", "suche nach katzen und hunden", search_registry)
+        # filler words are dropped, the content words stay in order
+        assert plan.query == "katzen hunden"
+        url = build_search_url(plan.entry.url_template, plan.query)
+        assert "katzen%20hunden" in url
+
+    def test_without_provider_the_request_is_rejected(self, registry):
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", "suche im internet nach katzen", registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    def test_search_word_alone_is_not_enough(self, registry_factory):
+        from minipcai.registry import Registry
+
+        registry = Registry.load(registry_factory(searchers=[
+            {"id": "google_search", "aliases": ["google"],
+             "url_template": "https://www.google.com/search?q={query}"},
+        ]))
+        # A bare provider name without a trigger word is not a search request:
+        # the classifier would have to guess which words are the query.
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", "google", registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "hallo",
+            "danke",
+            "was ist 12*4",
+            "wie ist die speicherauslastung",
+        ],
+    )
+    def test_trigger_words_do_not_turn_anything_into_a_search(self, search_registry, text):
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", text, search_registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    def test_trigger_plus_generic_words(self, search_registry):
+        for text, expected in (
+            ("suche nach katzenbildern", "katzenbildern"),
+            ("suche im internet nach katzen", "katzen"),
+            ("google nach wetter", "wetter"),
+            ("recherchiere mal die beste route", "beste route"),
+        ):
+            plan = resolve_target("web_search", text, search_registry)
+            assert plan.query == expected
+
+    def test_searcher_without_placeholder_is_a_registry_error(self, tmp_path):
+        import json
+
+        from minipcai.registry import RegistryError
+
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps({"version": 1, "searchers": [
+                {"id": "bad", "aliases": ["bad"], "url_template": "https://example.org/search"},
+            ]}),
+            encoding="utf-8",
+        )
+        with pytest.raises(RegistryError, match="placeholder"):
+            Registry.load(path)
