@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from minipcai.config import DEFAULT_DATASET_PATH, Thresholds
@@ -144,8 +146,9 @@ class TestRecordedPaths:
     def test_repo_paths_are_recorded_relative(self):
         from minipcai.train import _REPO_ROOT, _portable_path
 
-        assert _portable_path(_REPO_ROOT / "minipcai" / "data" / "registry.json") == \
-            "minipcai/data/registry.json"
+        recorded = _portable_path(_REPO_ROOT / "minipcai" / "data" / "registry.json")
+        expected = os.path.join("minipcai", "data", "registry.json")
+        assert recorded == expected
 
     def test_outside_paths_are_recorded_absolute(self, tmp_path):
         from minipcai.train import _portable_path
@@ -155,11 +158,13 @@ class TestRecordedPaths:
 
     def test_committed_metadata_uses_relative_paths(self):
         import json
-        from pathlib import Path
+        from pathlib import Path, PurePosixPath, PureWindowsPath
 
         metadata = json.loads(
             (Path(__file__).resolve().parent.parent / "models" / "metadata.json")
             .read_text(encoding="utf-8")
         )
-        assert not metadata["dataset"]["path"].startswith("/")
-        assert not metadata["registry"]["path"].startswith("/")
+        for key in ("dataset", "registry"):
+            recorded = metadata[key]["path"]
+            assert not PurePosixPath(recorded).is_absolute(), recorded
+            assert not PureWindowsPath(recorded).is_absolute(), recorded
