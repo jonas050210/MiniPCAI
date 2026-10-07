@@ -17,6 +17,7 @@ from pathlib import Path
 from minipcai.intents import TARGETED_INTENTS
 from minipcai.registry import Registry, RegistryEntry
 from minipcai.textutils import (
+    bigram_dice,
     damerau_levenshtein,
     extract_math_expression,
     extract_search_term,
@@ -100,6 +101,10 @@ class ActionPlan:
         return self.intent
 
 
+#: A hint is only offered when the spelling really resembles the alias.
+_MIN_SUGGESTION_SIMILARITY = 0.45
+
+
 def _suggest_alias(
     text: str, registry: Registry, section: str
 ) -> tuple[RegistryEntry, str] | None:
@@ -109,7 +114,7 @@ def _suggest_alias(
     clarification flow offers (stable id), the alias is what the user saw.
     """
     words = fold(text).split()
-    best: tuple[int, str, RegistryEntry] | None = None
+    candidates: list[tuple[tuple[float, float, int, str, str], str, RegistryEntry]] = []
     for entry in registry.section(section):
         for alias in entry.aliases:
             folded_alias = fold(alias)
@@ -117,13 +122,26 @@ def _suggest_alias(
                 if len(word) < 4 or len(folded_alias) < 4:
                     continue
                 distance = damerau_levenshtein(word, folded_alias)
-                if distance <= (2 if len(folded_alias) >= 7 else 1):
-                    if best is None or distance < best[0] or (
-                        distance == best[0] and len(folded_alias) > len(best[1])
-                    ):
-                        best = (distance, folded_alias, entry)
-    if best is None:
+                limit = 2 if len(folded_alias) >= 7 else 1
+                if distance > limit:
+                    continue
+                similarity = bigram_dice(word, folded_alias)
+                if similarity < _MIN_SUGGESTION_SIMILARITY:
+                    continue
+                # Ranking: lowest edit distance, then the highest bigram
+                # similarity, then the alias closest in length; the ids make
+                # the result deterministic instead of registry-order dependent.
+                score = (
+                    float(distance),
+                    -similarity,
+                    abs(len(word) - len(folded_alias)),
+                    folded_alias,
+                    entry.id,
+                )
+                candidates.append((score, folded_alias, entry))
+    if not candidates:
         return None
+    best = min(candidates, key=lambda item: item[0])
     return best[2], best[1]
 
 

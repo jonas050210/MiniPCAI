@@ -232,3 +232,32 @@ class TestWebSearch:
         )
         with pytest.raises(RegistryError, match="placeholder"):
             Registry.load(path)
+
+
+class TestFuzzySuggestions:
+    """Typos must produce a hint for the *closest* alias, not the first one."""
+
+    def test_doubled_letter_prefers_the_intended_alias(self, registry_factory, permissive_policy):
+        apps_dir = registry_factory().parent / "targets" / "apps"
+        path = registry_factory(
+            apps=[
+                {"id": "paint", "aliases": ["paint", "malprogramm"],
+                 "executable": str(apps_dir / "paint.exe")},
+                {"id": "outlook", "aliases": ["outlook", "mailprogramm"],
+                 "executable": str(apps_dir / "outlook.exe")},
+            ]
+        )
+        registry = Registry.load(path, policy=permissive_policy)
+        with pytest.raises(TargetError) as caught:
+            resolve_target("open_app", "öffne maalprogramm", registry)
+        # details carry the stable entry id; the alias is what the user sees
+        assert caught.value.details["suggestion"] == "paint"
+        assert caught.value.details["suggestion_alias"] == "malprogramm"
+
+    def test_suggestion_is_deterministic(self, registry, permissive_policy):
+        suggestions = set()
+        for _ in range(3):
+            with pytest.raises(TargetError) as caught:
+                resolve_target("open_app", "starte firofox", registry)
+            suggestions.add(caught.value.details["suggestion_alias"])
+        assert suggestions == {"firefox"}

@@ -137,6 +137,23 @@ def extract_math_expression(text: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def bigram_dice(a: str, b: str) -> float:
+    """Dice coefficient over character bigrams (0.0 .. 1.0).
+
+    Used to rank equally distant spellings: ``maalprogramm`` is one edit away
+    from both ``malprogramm`` and ``mailprogramm``, but shares more bigrams with
+    the first one, which is what the user meant.
+    """
+    def bigrams(value: str) -> set[str]:
+        padded = f" {value} "
+        return {padded[i : i + 2] for i in range(len(padded) - 1)}
+
+    left, right = bigrams(a), bigrams(b)
+    if not left or not right:
+        return 0.0
+    return 2 * len(left & right) / (len(left) + len(right))
+
+
 def damerau_levenshtein(a: str, b: str) -> int:
     """Damerau-Levenshtein distance (insert/delete/substitute/swap).
 

@@ -155,3 +155,23 @@ class TestSearchTermExtraction:
         assert extract_search_term("finde ../../etc/passwd") == "etc passwd"
         term = extract_search_term("suche C:\\Windows\\system32")
         assert "/" not in term and "\\" not in term
+
+
+class TestBigramDice:
+    def test_identical_words_score_one(self):
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("malprogramm", "malprogramm") == 1.0
+
+    def test_shared_bigrams_rank_the_intended_alias_higher(self):
+        """``maalprogramm`` is one edit from both aliases; bigrams decide."""
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("maalprogramm", "malprogramm") > bigram_dice(
+            "maalprogramm", "mailprogramm"
+        )
+
+    def test_unrelated_words_score_low(self):
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("notepad", "wikipedia") < 0.2

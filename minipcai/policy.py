@@ -182,6 +182,23 @@ _EMBEDDED_PATH_RE = re.compile(
 )
 
 
+# Shell syntax never appears in a request MiniPCAI should handle. Even though
+# actions never go through a shell, a request like "öffne notepad; rm -rf /"
+# must not be interpreted as a valid action - it is refused as unsafe.
+_SHELL_SYNTAX_RE = re.compile(
+    r"[;`|]"          # command separators and pipes
+    r"|&&|\|\|"      # logical operators
+    r"|\$\("          # command substitution
+    r"|\$\{"          # parameter expansion
+    r"|\r|\n"         # multiple lines
+)
+
+
+def contains_shell_syntax(value: str) -> bool:
+    """True when a request contains command separators, pipes or redirects."""
+    return bool(_SHELL_SYNTAX_RE.search(value or ""))
+
+
 def looks_like_path(value: str) -> bool:
     """True when a request contains a filesystem path instead of a plain name.
 

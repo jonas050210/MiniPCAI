@@ -34,6 +34,16 @@ resolved by matching the sentence against the aliases of the registry
   validator (`SecurityValidator`) proves the plan's entry is an unmodified copy
   of a validated registry entry (provenance check).
 
+### 2. No shell, no command strings
+
+Requests are matched against intents and resolved through the registry; nothing
+is ever handed to a shell (`subprocess` runs with an argument *list*, never
+`shell=True`, and there is no `eval`/`exec` in the code base - a static
+source-scan test enforces both). On top of that, a request containing shell
+syntax (`;`, `` ` ``, `|`, `&&`, `||`, `$(`, `${}`, newlines) is refused as
+`unsafe_request` before the classifier runs, so "öffne notepad; rm -rf /" is
+not interpreted as a valid action.
+
 ### 2. Blocklists that survive a hand-edited registry
 
 Even if somebody edits the registry by hand, these are refused at load time and

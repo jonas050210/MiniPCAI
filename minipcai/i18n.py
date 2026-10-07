@@ -74,6 +74,9 @@ _DE = {
     ),
     # -- security -----------------------------------------------------------
     "unsafe_request": "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt.",
+    "unsafe.shell_syntax": (
+        "Ich führe keine Shell-Befehle aus. Frag mich nach einer registrierten Aktion."
+    ),
     "untrusted_target": (
         "Dieses Ziel liegt nicht an einem freigegebenen Ort, deshalb führe ich es nicht aus."
     ),
@@ -299,6 +302,9 @@ _EN = {
     "parameter.web_query": "No search query found. Example: 'suche im internet nach katzen'.",
     "parameter.no_searcher": "No search provider is configured in the registry.",
     "unsafe_request": "That request was refused for safety reasons.",
+    "unsafe.shell_syntax": (
+        "I do not run shell commands. Ask me for one registered action instead."
+    ),
     "untrusted_target": (
         "That target is not in a trusted location, so I will not act on it."
     ),

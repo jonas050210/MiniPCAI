@@ -53,6 +53,12 @@ jobs:
         run: xvfb-run -a pytest -q
       - name: Dataset fingerprint
         run: python scripts/check_dataset_fingerprint.py
+      - name: Train the model (for the quality gate)
+        if: runner.os == 'Linux'
+        run: python -m minipcai.train
+      - name: Golden hard set (0 wrong accepts, <=8% unnecessary rejects)
+        if: runner.os == 'Linux'
+        run: python scripts/check_golden_hard.py --sweep
 
   packaging:
     name: packaging (${{ matrix.os }})

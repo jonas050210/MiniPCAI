@@ -49,6 +49,7 @@ from minipcai.model import IntentModel, ModelError, SklearnIntentClassifier
 from minipcai.paths import resolve_registry_path
 from minipcai.policy import (
     SecurityPolicy,
+    contains_shell_syntax,
     default_policy,
     looks_like_path,
 )
@@ -387,6 +388,13 @@ class Assistant:
         # 0. Path guard: MiniPCAI never resolves targets from raw user paths,
         #    so a request that spells out a filesystem path is refused before
         #    the classifier can map it onto an action.
+        if contains_shell_syntax(text):
+            return self._reject(
+                request_id, text, None, None, REASON_UNSAFE_REQUEST,
+                "I do not run shell commands. Ask me for one registered action instead.",
+                message_key="unsafe.shell_syntax",
+            )
+
         if looks_like_path(text):
             return self._reject(
                 request_id, text, None, None, REASON_TARGET_NOT_FOUND,

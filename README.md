@@ -87,6 +87,24 @@ minipcai audit --verify                 # hash chain intact?
 minipcai --version
 ```
 
+## Quality gates
+
+Beyond the unit tests, MiniPCAI ships a *golden hard set* of realistic German
+sentences (typos, umlaut variants, colloquial phrasings, out-of-scope requests,
+injection attempts) plus a registry-driven sweep that derives hundreds of
+phrasings from the registry itself:
+
+```bash
+python scripts/check_golden_hard.py --sweep
+```
+
+The gate fails if anything out of scope or wrongly targeted is ever executed
+(**0 wrong accepts** - a safety invariant) or if more than **8 %** of in-scope
+requests are rejected that the assistant should have understood. Typos are
+allowed to ask back ("Meintest du 'malprogramm'?") - that counts as handled,
+not as a rejection. The same numbers are asserted in `tests/test_golden.py`,
+so a regression shows up in the normal test run.
+
 ## Security model
 
 The full model (threat model, reporting process, hardening checklist) lives in

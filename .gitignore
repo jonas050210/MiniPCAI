@@ -21,3 +21,6 @@ models/*
 
 # Local runtime state
 *.log
+
+# Local quality-gate artifacts
+golden-check-audit.jsonl
