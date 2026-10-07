@@ -361,3 +361,48 @@ class TestFirstRunExperience:
         ])
         assert code == 0
         assert (tmp_path / "models" / "model.joblib").is_file()
+
+
+class TestUntrustedRegistryIsRefused:
+    """The trusted-root policy is what broke the Windows CI: registry entries
+    whose application lives outside the approved locations are refused - with a
+    readable hint - unless the documented escape hatch is used."""
+
+    def _registry(self, tmp_path):
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "apps": [
+                        {
+                            "id": "tool",
+                            "aliases": ["tool"],
+                            "executable": "C:\\tools\\tool.exe",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_outside_the_trusted_locations(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", raising=False)
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "trusted application locations" in err
+        assert "MINIPCAI_ALLOW_UNTRUSTED_APPS" in err
+
+    def test_allow_untrusted_escape_hatch(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setenv("MINIPCAI_ALLOW_UNTRUSTED_APPS", "1")
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 0
+        assert "tool" in capsys.readouterr().out
+
+    def test_extra_trusted_root_escape_hatch(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", "C:\\tools")
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 0
+        assert "tool" in capsys.readouterr().out

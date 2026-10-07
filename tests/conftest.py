@@ -20,6 +20,21 @@ def trained_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return models_dir / "model.joblib"
 
 
+@pytest.fixture(autouse=True)
+def _approve_the_test_targets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Declare this test's temporary directory an approved application location.
+
+    The fixture registries point their apps at files inside ``tmp_path``. On
+    POSIX systems the trusted-root policy deliberately stays out of the way
+    (the real executor refuses to act there anyway), but on Windows such a path
+    is outside the trusted locations and the registry would - correctly - be
+    refused. The *documented* escape hatch is used here instead of weakening the
+    rule; the rule itself is covered by ``tests/test_policy.py`` and
+    ``tests/test_registry.py``.
+    """
+    monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", str(tmp_path))
+
+
 @pytest.fixture()
 def permissive_policy():
     """A policy without the trusted-app-root allowlist.
