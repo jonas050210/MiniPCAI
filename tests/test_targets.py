@@ -141,3 +141,152 @@ class TestSystemIntents:
         plan = resolve_target(intent, "irgendein text", registry)
         assert plan.intent == intent
         assert plan.entry is None
+
+
+class TestWebSearch:
+    """The web-search intent only ever opens *registered* search providers."""
+
+    @pytest.fixture()
+    def search_registry(self, registry_factory):
+        from minipcai.registry import Registry
+
+        path = registry_factory(searchers=[
+            {"id": "google_search", "aliases": ["google", "websuche"],
+             "url_template": "https://www.google.com/search?q={query}"},
+        ])
+        return Registry.load(path)
+
+    def test_searcher_provider_resolves(self, search_registry):
+        from minipcai.actions import build_search_url
+
+        plan = resolve_target("web_search", "google nach katzen", search_registry)
+        assert plan.intent == "web_search"
+        assert plan.entry.id == "google_search"
+        assert plan.query == "katzen"
+        url = build_search_url(plan.entry.url_template, plan.query)
+        assert "{query}" not in url
+        assert url.startswith("https://www.google.com/search?q=")
+
+    def test_query_is_url_encoded_when_the_url_is_built(self, search_registry):
+        from minipcai.actions import build_search_url
+
+        plan = resolve_target("web_search", "suche nach katzen und hunden", search_registry)
+        # filler words are dropped, the content words stay in order
+        assert plan.query == "katzen hunden"
+        url = build_search_url(plan.entry.url_template, plan.query)
+        assert "katzen%20hunden" in url
+
+    def test_without_provider_the_request_is_rejected(self, registry):
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", "suche im internet nach katzen", registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    def test_search_word_alone_is_not_enough(self, registry_factory):
+        from minipcai.registry import Registry
+
+        registry = Registry.load(registry_factory(searchers=[
+            {"id": "google_search", "aliases": ["google"],
+             "url_template": "https://www.google.com/search?q={query}"},
+        ]))
+        # A bare provider name without a trigger word is not a search request:
+        # the classifier would have to guess which words are the query.
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", "google", registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "hallo",
+            "danke",
+            "was ist 12*4",
+            "wie ist die speicherauslastung",
+        ],
+    )
+    def test_trigger_words_do_not_turn_anything_into_a_search(self, search_registry, text):
+        with pytest.raises(TargetError) as excinfo:
+            resolve_target("web_search", text, search_registry)
+        assert excinfo.value.reason == "invalid_parameter"
+
+    def test_trigger_plus_generic_words(self, search_registry):
+        for text, expected in (
+            ("suche nach katzenbildern", "katzenbildern"),
+            ("suche im internet nach katzen", "katzen"),
+            ("google nach wetter", "wetter"),
+            ("recherchiere mal die beste route", "beste route"),
+        ):
+            plan = resolve_target("web_search", text, search_registry)
+            assert plan.query == expected
+
+    def test_searcher_without_placeholder_is_a_registry_error(self, tmp_path):
+        import json
+
+        from minipcai.registry import RegistryError
+
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps({"version": 1, "searchers": [
+                {"id": "bad", "aliases": ["bad"], "url_template": "https://example.org/search"},
+            ]}),
+            encoding="utf-8",
+        )
+        with pytest.raises(RegistryError, match="placeholder"):
+            Registry.load(path)
+
+
+class TestFuzzySuggestions:
+    """Typos must produce a hint for the *closest* alias, not the first one."""
+
+    def test_doubled_letter_prefers_the_intended_alias(self, registry_factory, permissive_policy):
+        apps_dir = registry_factory().parent / "targets" / "apps"
+        path = registry_factory(
+            apps=[
+                {"id": "paint", "aliases": ["paint", "malprogramm"],
+                 "executable": str(apps_dir / "paint.exe")},
+                {"id": "outlook", "aliases": ["outlook", "mailprogramm"],
+                 "executable": str(apps_dir / "outlook.exe")},
+            ]
+        )
+        registry = Registry.load(path, policy=permissive_policy)
+        with pytest.raises(TargetError) as caught:
+            resolve_target("open_app", "öffne maalprogramm", registry)
+        # details carry the stable entry id; the alias is what the user sees
+        assert caught.value.details["suggestion"] == "paint"
+        assert caught.value.details["suggestion_alias"] == "malprogramm"
+
+    def test_suggestion_is_deterministic(self, registry, permissive_policy):
+        suggestions = set()
+        for _ in range(3):
+            with pytest.raises(TargetError) as caught:
+                resolve_target("open_app", "starte firofox", registry)
+            suggestions.add(caught.value.details["suggestion_alias"])
+        assert suggestions == {"firefox"}
+
+
+class TestCrossSectionSuggestion:
+    """When the classifier is unsure, the registry can still name the target."""
+
+    def test_suggestion_finds_the_entry_across_sections(self, registry):
+        from minipcai.targets import suggest_entry
+
+        hint = suggest_entry("öffne dokumnete", registry)
+        assert hint is not None
+        entry, alias = hint
+        assert entry.id == "documents" and entry.section == "folders"
+        assert alias == "dokumente"
+
+    def test_unrelated_text_has_no_suggestion(self, registry):
+        from minipcai.targets import suggest_entry
+
+        assert suggest_entry("erzähl mir einen witz", registry) is None
+        assert suggest_entry("wie wird das wetter", registry) is None
+
+    def test_intent_for_entry_uses_the_section_and_the_verb(self, registry):
+        from minipcai.targets import intent_for_entry
+
+        apps = registry.by_id("notepad")
+        assert intent_for_entry(apps, "öffne notepad") == "open_app"
+        assert intent_for_entry(apps, "schließe notepad") == "close_app"
+        assert intent_for_entry(apps, "beende notepad") == "close_app"
+        assert intent_for_entry(registry.by_id("wikipedia"), "geh auf wikipedia") == "open_url"
+        assert intent_for_entry(registry.by_id("notes"), "öffne notizen") == "open_file"

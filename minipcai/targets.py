@@ -2,9 +2,11 @@
 
 The resolver NEVER constructs Windows paths from user input. Targets are
 looked up exclusively via alias matching against the validated registry.
-Parameterized intents (``calc``, ``timer``, ``find_file``) get their values
-from strict parsers in :mod:`minipcai.textutils`; those values are re-checked
-by :mod:`minipcai.security` before execution.
+Parameterized intents (``calc``, ``timer``, ``find_file``, ``web_search``) get
+their values from strict parsers in :mod:`minipcai.textutils`; those values are
+re-checked by :mod:`minipcai.security` before execution - and in the case of a
+web search the executor percent-encodes the query into a *fixed* registry URL
+template, so no user text can ever change the target host.
 """
 
 from __future__ import annotations
@@ -12,19 +14,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from minipcai.intents import TARGETED_INTENTS
+from minipcai.intents import REGISTRY_SECTIONS, TARGETED_INTENTS
 from minipcai.registry import Registry, RegistryEntry
 from minipcai.textutils import (
+    bigram_dice,
     damerau_levenshtein,
     extract_math_expression,
     extract_search_term,
-    normalize,
+    extract_web_query,
+    fold,
+    has_web_search_trigger,
     parse_duration,
 )
 
-# Human-readable names per registry section, used in rejection messages.
-_SECTION_KINDS = {"apps": "app", "files": "file", "folders": "folder",
-                  "websites": "website"}
+# Human-readable names per registry section, used in messages and details.
+SECTION_KINDS = {
+    "apps": "app",
+    "files": "file",
+    "folders": "folder",
+    "websites": "website",
+    "searchers": "search provider",
+}
 
 # Reason codes for target resolution failures.
 TARGET_NOT_FOUND = "target_not_found"
@@ -34,13 +44,27 @@ INVALID_PARAMETER = "invalid_parameter"
 
 
 class TargetError(Exception):
-    """Raised when no safe, unambiguous target can be resolved."""
+    """Raised when no safe, unambiguous target can be resolved.
 
-    def __init__(self, reason: str, message: str, details: dict | None = None):
+    Carries a reason code, an English fallback message, structured details and
+    (where available) an i18n key plus fields so frontends can render the same
+    failure in German without re-deriving it.
+    """
+
+    def __init__(
+        self,
+        reason: str,
+        message: str,
+        details: dict | None = None,
+        message_key: str = "",
+        message_fields: dict | None = None,
+    ):
         super().__init__(message)
         self.reason = reason
         self.message = message
         self.details = details or {}
+        self.message_key = message_key
+        self.message_fields = message_fields or {}
 
 
 @dataclass(frozen=True)
@@ -52,31 +76,139 @@ class ActionPlan:
     """
 
     intent: str
-    entry: RegistryEntry | None = None          # open/close app, url, file, folder
+    entry: RegistryEntry | None = None          # open/close app, url, file, folder, web search
     expression: str | None = None               # calc
     duration_seconds: int | None = None         # timer
     search_term: str | None = None              # find_file
     search_roots: tuple[Path, ...] = field(default_factory=tuple)  # find_file
+    query: str | None = None                    # web_search
     request_id: str = ""                        # audit correlation
 
+    def target_id(self) -> str | None:
+        return self.entry.id if self.entry else None
 
-def _suggest_alias(text: str, registry: Registry, section: str) -> str | None:
-    """Find a registry alias close to a word of the request (for hints only)."""
-    words = normalize(text).split()
-    best: tuple[int, str] | None = None
+    def describe(self) -> str:
+        """Short, human-readable plan description (used in confirmations)."""
+        if self.intent in TARGETED_INTENTS or self.intent == "web_search":
+            entry = self.entry
+            return f"{self.intent}: {entry.id if entry else '?'}"
+        if self.intent == "calc":
+            return f"calc: {self.expression}"
+        if self.intent == "timer":
+            return f"timer: {self.duration_seconds}s"
+        if self.intent == "find_file":
+            return f"find_file: {self.search_term}"
+        return self.intent
+
+
+#: A hint is only offered when the spelling really resembles the alias.
+_MIN_SUGGESTION_SIMILARITY = 0.45
+
+
+def _suggest_alias(
+    text: str, registry: Registry, section: str
+) -> tuple[RegistryEntry, str] | None:
+    """Find the registry entry whose alias is closest to a word in ``text``.
+
+    Returns ``(entry, matched_alias)`` for hints only: the *entry* is what the
+    clarification flow offers (stable id), the alias is what the user saw.
+    """
+    words = fold(text).split()
+    candidates: list[tuple[tuple[float, float, int, str, str], str, RegistryEntry]] = []
     for entry in registry.section(section):
         for alias in entry.aliases:
-            normalized_alias = normalize(alias)
+            folded_alias = fold(alias)
             for word in words:
-                if len(word) < 4 or len(normalized_alias) < 4:
+                if len(word) < 4 or len(folded_alias) < 4:
                     continue
-                distance = damerau_levenshtein(word, normalized_alias)
-                if distance <= (2 if len(normalized_alias) >= 7 else 1):
-                    if best is None or distance < best[0] or (
-                        distance == best[0] and len(normalized_alias) > len(best[1])
-                    ):
-                        best = (distance, normalized_alias)
-    return best[1] if best else None
+                distance = damerau_levenshtein(word, folded_alias)
+                limit = 2 if len(folded_alias) >= 7 else 1
+                if distance > limit:
+                    continue
+                similarity = bigram_dice(word, folded_alias)
+                if similarity < _MIN_SUGGESTION_SIMILARITY:
+                    continue
+                # Ranking: lowest edit distance, then the highest bigram
+                # similarity, then the alias closest in length; the ids make
+                # the result deterministic instead of registry-order dependent.
+                score = (
+                    float(distance),
+                    -similarity,
+                    abs(len(word) - len(folded_alias)),
+                    folded_alias,
+                    entry.id,
+                )
+                candidates.append((score, folded_alias, entry))
+    if not candidates:
+        return None
+    best = min(candidates, key=lambda item: item[0])
+    return best[2], best[1]
+
+
+#: Which intent a registry section implies when the user confirmed a target.
+_SECTION_INTENTS: dict[str, str] = {
+    "apps": "open_app",
+    "files": "open_file",
+    "folders": "open_folder",
+    "websites": "open_url",
+}
+#: Words that turn a confirmed app target into "close it".
+_CLOSE_WORDS = ("schließ", "schliess", "beende", "beenden", "zu machen", "zumachen",
+                "close", "quit", "exit", "beendet")
+
+#: Across sections a suggestion has to be a clear winner: this similarity
+#: margin above the runner-up keeps "did you mean" honest.
+_SUGGESTION_WINNING_MARGIN = 0.1
+
+
+def suggest_entry(
+    text: str, registry: Registry, sections: tuple[str, ...] | None = None
+) -> tuple[RegistryEntry, str] | None:
+    """Best registry entry for a (probably mistyped) request, across sections.
+
+    Used when the classifier is not confident: instead of refusing outright,
+    the pipeline can ask "did you mean 'dokumente'?". The suggestion is only
+    returned when it is a *clear* winner, so the question stays useful.
+    """
+    sections = sections or REGISTRY_SECTIONS
+    words = [word for word in fold(text).split() if len(word) >= 4]
+    best: tuple[float, str, RegistryEntry] | None = None
+    runner_up = 0.0
+    for section in sections:
+        for entry in registry.section(section):
+            for alias in entry.aliases:
+                folded_alias = fold(alias)
+                if len(folded_alias) < 4:
+                    continue
+                for word in words:
+                    distance = damerau_levenshtein(word, folded_alias)
+                    if distance > (2 if len(folded_alias) >= 7 else 1):
+                        continue
+                    similarity = bigram_dice(word, folded_alias)
+                    if similarity < _MIN_SUGGESTION_SIMILARITY:
+                        continue
+                    score = (float(distance), -similarity, entry.id)
+                    if best is None or score < best[0]:
+                        runner_up = best[0][1] * -1 if best else 0.0
+                        best = (score, folded_alias, entry)
+                    elif similarity > runner_up:
+                        runner_up = similarity
+    if best is None:
+        return None
+    winning_margin = (best[0][1] * -1) - runner_up
+    if len(sections) > 1 and runner_up and winning_margin < _SUGGESTION_WINNING_MARGIN:
+        return None
+    return best[2], best[1]
+
+
+def intent_for_entry(entry: RegistryEntry, text: str) -> str | None:
+    """The intent a confirmed target implies (``close_app`` for close verbs)."""
+    intent = _SECTION_INTENTS.get(entry.section)
+    if intent is None:
+        return None
+    if intent == "open_app" and any(word in fold(text) for word in _CLOSE_WORDS):
+        return "close_app"
+    return intent
 
 
 def _resolve_registry_target(intent: str, text: str, registry: Registry) -> ActionPlan:
@@ -85,10 +217,13 @@ def _resolve_registry_target(intent: str, text: str, registry: Registry) -> Acti
 
     if len(matches) > 1:
         names = ", ".join(f"'{match.entry.id}'" for match in matches)
+        candidates = [match.entry.id for match in matches]
         raise TargetError(
             TARGET_AMBIGUOUS,
             f"Multiple {section} match this request ({names}). Please name exactly one.",
-            details={"candidates": [match.entry.id for match in matches]},
+            details={"candidates": candidates, "options": candidates},
+            message_key="target.ambiguous",
+            message_fields={"names": names, "kind": SECTION_KINDS[section]},
         )
 
     if len(matches) == 1:
@@ -104,25 +239,37 @@ def _resolve_registry_target(intent: str, text: str, registry: Registry) -> Acti
     hit_sections = [s for s, ms in other_matches.items() if ms]
     if len(hit_sections) == 1 and len(other_matches[hit_sections[0]]) == 1:
         entry = other_matches[hit_sections[0]][0].entry
-        kind = _SECTION_KINDS[entry.section]
+        kind = SECTION_KINDS[entry.section]
         raise TargetError(
             TARGET_MISMATCH,
             f"'{entry.id}' is a registered {kind}, but this request sounds like a "
             f"different action. Please rephrase and mention the {kind} explicitly.",
             details={"suggestion_entry": entry.id, "suggestion_section": entry.section},
+            message_key="target.mismatch",
+            message_fields={"entry": entry.id, "kind": kind},
         )
 
-    suggestion = _suggest_alias(text, registry, section)
+    hint = _suggest_alias(text, registry, section)
+    kind = SECTION_KINDS[section]
+    alias = hint[1] if hint else ""
     message = (
-        f"No approved {section[:-1]} matches this request. "
-        "Only targets from the registry can be used."
+        f"No approved {kind} matches this request. Only targets from the registry "
+        "can be used."
     )
-    if suggestion:
-        message += f" Did you mean '{suggestion}'?"
+    if hint:
+        message += f" Did you mean '{alias}'?"
     raise TargetError(
         TARGET_NOT_FOUND,
         message,
-        details={"text_snippet": text[:80], "suggestion": suggestion},
+        details={
+            "text_snippet": text[:80],
+            "suggestion": hint[0].id if hint else None,
+            "suggestion_alias": alias,
+            "kind": kind,
+            "section": section,
+        },
+        message_key="target.not_found" + (".suggestion" if hint else ""),
+        message_fields={"suggestion": alias, "kind": kind},
     )
 
 
@@ -132,12 +279,14 @@ def _resolve_find_file(text: str, registry: Registry) -> ActionPlan:
         raise TargetError(
             INVALID_PARAMETER,
             "No search term found. Example: 'finde die datei rechnung'.",
+            message_key="parameter.search",
         )
     folders = registry.searchable_folders()
     if not folders:
         raise TargetError(
             INVALID_PARAMETER,
             "No searchable folders are configured in the registry.",
+            message_key="parameter.no_searchable_folders",
         )
     return ActionPlan(
         intent="find_file",
@@ -146,12 +295,37 @@ def _resolve_find_file(text: str, registry: Registry) -> ActionPlan:
     )
 
 
+def _resolve_web_search(text: str, registry: Registry) -> ActionPlan:
+    searchers = registry.searchers()
+    if not searchers:
+        raise TargetError(
+            INVALID_PARAMETER,
+            "No search provider is configured in the registry.",
+            message_key="parameter.no_searcher",
+        )
+    matches = registry.find_matches(text, "searchers")
+    searcher: RegistryEntry = matches[0].entry if matches else searchers[0]
+    strip_words = [alias for alias in searcher.aliases] + [searcher.id]
+    query = extract_web_query(text, strip_aliases=tuple(strip_words))
+    # A web search must be *asked for*: either a registered provider is named
+    # or the request contains an explicit search word. Without this gate the
+    # intent would swallow every sentence with a content word.
+    if not query or (not matches and not has_web_search_trigger(text)):
+        raise TargetError(
+            INVALID_PARAMETER,
+            "No search query found. Example: 'suche im internet nach katzen'.",
+            message_key="parameter.web_query",
+        )
+    return ActionPlan(intent="web_search", entry=searcher, query=query)
+
+
 def _resolve_calc(text: str) -> ActionPlan:
     expression = extract_math_expression(text)
     if expression is None:
         raise TargetError(
             INVALID_PARAMETER,
             "No arithmetic expression found. Example: 'was ist 12*4'.",
+            message_key="parameter.calc",
         )
     return ActionPlan(intent="calc", expression=expression)
 
@@ -162,16 +336,35 @@ def _resolve_timer(text: str) -> ActionPlan:
         raise TargetError(
             INVALID_PARAMETER,
             "No duration found. Example: 'stelle einen timer auf 10 minuten'.",
+            message_key="parameter.timer",
         )
     return ActionPlan(intent="timer", duration_seconds=seconds)
 
 
-def resolve_target(intent: str, text: str, registry: Registry) -> ActionPlan:
-    """Resolve the logical target for ``intent`` from ``text``."""
+def resolve_target(
+    intent: str,
+    text: str,
+    registry: Registry,
+    preferred_target: str | None = None,
+) -> ActionPlan:
+    """Resolve the logical target for ``intent`` from ``text``.
+
+    ``preferred_target`` is an *internal* hint: the id of a registry entry the
+    caller (the clarification flow) has already offered the user. It never
+    comes from raw user text, is only accepted when the entry exists and the
+    entry's kind matches the intent, and short-circuits the alias lookup so a
+    disambiguated request cannot fall back into ambiguity.
+    """
+    if preferred_target and intent in TARGETED_INTENTS:
+        entry = registry.by_id(preferred_target)
+        if entry is not None and entry.section == TARGETED_INTENTS[intent]:
+            return ActionPlan(intent=intent, entry=entry)
     if intent in TARGETED_INTENTS:
         return _resolve_registry_target(intent, text, registry)
     if intent == "find_file":
         return _resolve_find_file(text, registry)
+    if intent == "web_search":
+        return _resolve_web_search(text, registry)
     if intent == "calc":
         return _resolve_calc(text)
     if intent == "timer":

@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "apps": [
+    {
+      "id": "notepad",
+      "aliases": [
+        "notepad",
+        "editor",
+        "texteditor",
+        "textverarbeitung"
+      ],
+      "executable": "C:\\Windows\\System32\\notepad.exe"
+    },
+    {
+      "id": "calculator",
+      "aliases": [
+        "taschenrechner",
+        "rechenmaschine"
+      ],
+      "executable": "C:\\Windows\\System32\\calc.exe"
+    },
+    {
+      "id": "paint",
+      "aliases": [
+        "paint",
+        "malprogramm",
+        "zeichenprogramm"
+      ],
+      "executable": "C:\\Windows\\System32\\mspaint.exe"
+    },
+    {
+      "id": "firefox",
+      "aliases": [
+        "firefox",
+        "browser"
+      ],
+      "executable": "C:\\Program Files\\Mozilla Firefox\\firefox.exe"
+    },
+    {
+      "id": "chrome",
+      "aliases": [
+        "chrome"
+      ],
+      "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    },
+    {
+      "id": "outlook",
+      "aliases": [
+        "outlook",
+        "mailprogramm"
+      ],
+      "executable": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"
+    }
+  ],
+  "files": [
+    {
+      "id": "notes",
+      "aliases": [
+        "notizen",
+        "notizzettel"
+      ],
+      "path": "%USERPROFILE%\\Documents\\notes.txt"
+    },
+    {
+      "id": "protocol",
+      "aliases": [
+        "protokoll"
+      ],
+      "path": "%USERPROFILE%\\Documents\\protocol.md"
+    },
+    {
+      "id": "report",
+      "aliases": [
+        "bericht",
+        "report"
+      ],
+      "path": "%USERPROFILE%\\Documents\\report.docx"
+    },
+    {
+      "id": "invoice",
+      "aliases": [
+        "rechnung"
+      ],
+      "path": "%USERPROFILE%\\Documents\\invoice_2024.pdf"
+    },
+    {
+      "id": "presentation",
+      "aliases": [
+        "präsentation",
+        "presentation"
+      ],
+      "path": "%USERPROFILE%\\Documents\\slides.pptx"
+    },
+    {
+      "id": "table",
+      "aliases": [
+        "tabelle"
+      ],
+      "path": "%USERPROFILE%\\Documents\\budget.xlsx"
+    }
+  ],
+  "folders": [
+    {
+      "id": "downloads",
+      "aliases": [
+        "downloads",
+        "download-ordner",
+        "downloadordner"
+      ],
+      "path": "%USERPROFILE%\\Downloads",
+      "searchable": true
+    },
+    {
+      "id": "documents",
+      "aliases": [
+        "dokumente",
+        "dokumente-ordner",
+        "documente"
+      ],
+      "path": "%USERPROFILE%\\Documents",
+      "searchable": true
+    },
+    {
+      "id": "pictures",
+      "aliases": [
+        "bilder",
+        "bilder-ordner",
+        "fotos"
+      ],
+      "path": "%USERPROFILE%\\Pictures",
+      "searchable": false
+    }
+  ],
+  "websites": [
+    {
+      "id": "wikipedia",
+      "aliases": [
+        "wikipedia",
+        "wiki",
+        "nachschlagewerk"
+      ],
+      "url": "https://www.wikipedia.org"
+    },
+    {
+      "id": "google",
+      "aliases": [
+        "google",
+        "suchmaschine"
+      ],
+      "url": "https://www.google.com"
+    },
+    {
+      "id": "github",
+      "aliases": [
+        "github"
+      ],
+      "url": "https://github.com"
+    },
+    {
+      "id": "youtube",
+      "aliases": [
+        "youtube"
+      ],
+      "url": "https://www.youtube.com"
+    }
+  ],
+  "searchers": [
+    {
+      "id": "google_search",
+      "aliases": [
+        "google",
+        "websuche",
+        "web-suche",
+        "suchmaschine",
+        "im internet",
+        "online suche"
+      ],
+      "url_template": "https://www.google.com/search?q={query}"
+    },
+    {
+      "id": "wikipedia_search",
+      "aliases": [
+        "wikipedia suche",
+        "wiki-suche"
+      ],
+      "url_template": "https://de.wikipedia.org/w/index.php?search={query}"
+    },
+    {
+      "id": "youtube_search",
+      "aliases": [
+        "youtube suche",
+        "videos suche",
+        "video suche"
+      ],
+      "url_template": "https://www.youtube.com/results?search_query={query}"
+    }
+  ]
+}

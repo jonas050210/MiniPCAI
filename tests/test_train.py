@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from minipcai.config import DEFAULT_DATASET_PATH, Thresholds
@@ -52,11 +54,25 @@ class TestSplits:
 
 class TestCalibration:
     def test_returns_thresholds_and_full_table(self, trained):
+        from minipcai.train import _CONFIDENCE_GRID, _MARGIN_GRID
+
         _, thresholds, _, table = trained
         assert isinstance(thresholds, Thresholds)
         assert 0.0 < thresholds.min_confidence < 1.0
         assert 0.0 < thresholds.min_margin < 1.0
-        assert len(table) == 9 * 6  # confidence grid x margin grid
+        assert len(table) == len(_CONFIDENCE_GRID) * len(_MARGIN_GRID)
+
+    def test_chosen_thresholds_are_safe_on_the_guard_split(self, trained):
+        """The pair is vetoed when it accepts a wrong intent on the guard split."""
+        _, thresholds, splits, table = trained
+        chosen = [
+            row for row in table
+            if row["min_confidence"] == thresholds.min_confidence
+            and row["min_margin"] == thresholds.min_margin
+        ][0]
+        assert chosen["accepted_wrong"] == 0
+        assert chosen["guard_accepted_wrong"] == 0
+        assert all("guard_accepted_wrong" in row for row in table)
 
     def test_chosen_thresholds_are_safe_on_validation(self, trained):
         classifier, thresholds, splits, _ = trained
@@ -122,3 +138,33 @@ class TestTrainArtifacts:
         assert metadata["thresholds"] == metrics["thresholds"]
         assert metadata["metrics_summary"]["test_accuracy"] == metrics["test"]["accuracy"]
         assert metadata["safety_summary"]["test_accepted_wrong_in_scope"] == 0
+
+
+class TestRecordedPaths:
+    """Committed metadata must not leak machine-specific absolute paths."""
+
+    def test_repo_paths_are_recorded_relative(self):
+        from minipcai.train import _REPO_ROOT, _portable_path
+
+        recorded = _portable_path(_REPO_ROOT / "minipcai" / "data" / "registry.json")
+        expected = os.path.join("minipcai", "data", "registry.json")
+        assert recorded == expected
+
+    def test_outside_paths_are_recorded_absolute(self, tmp_path):
+        from minipcai.train import _portable_path
+
+        outside = tmp_path / "somewhere.json"
+        assert _portable_path(outside) == str(outside.resolve())
+
+    def test_committed_metadata_uses_relative_paths(self):
+        import json
+        from pathlib import Path, PurePosixPath, PureWindowsPath
+
+        metadata = json.loads(
+            (Path(__file__).resolve().parent.parent / "models" / "metadata.json")
+            .read_text(encoding="utf-8")
+        )
+        for key in ("dataset", "registry"):
+            recorded = metadata[key]["path"]
+            assert not PurePosixPath(recorded).is_absolute(), recorded
+            assert not PureWindowsPath(recorded).is_absolute(), recorded

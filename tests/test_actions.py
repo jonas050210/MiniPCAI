@@ -139,24 +139,21 @@ class TestWindowsExecutorGatedActions:
 
     def test_open_app_requires_windows(self, registry, monkeypatch):
         calls: list[dict] = []
-        monkeypatch.setattr(
-            actions_module.subprocess, "Popen",
-            lambda argv, shell, cwd=None: calls.append(
-                {"argv": argv, "shell": shell, "cwd": cwd}
-            ),
-        )
+
+        def fake_popen(argv, shell, cwd=None, **kwargs):
+            calls.append({"argv": argv, "shell": shell, "cwd": cwd, **kwargs})
+
+        monkeypatch.setattr(actions_module.subprocess, "Popen", fake_popen)
         if IS_WINDOWS:
             result = WindowsExecutor().execute(
                 _plan(registry, "open_app", "öffne notepad")
             )
             assert result.ok
-            assert calls == [
-                {
-                    "argv": [str(registry.by_id("notepad").path)],
-                    "shell": False,
-                    "cwd": str(Path(registry.by_id("notepad").path).parent),
-                }
-            ]
+            assert calls[0]["argv"] == [str(registry.by_id("notepad").path)]
+            assert calls[0]["shell"] is False
+            assert calls[0]["cwd"] == str(Path(registry.by_id("notepad").path).parent)
+            # the detached-launch flags are platform specific
+            assert ("creationflags" in calls[0]) == IS_WINDOWS
         else:
             with pytest.raises(ExecutorUnavailable, match="requires Windows"):
                 WindowsExecutor().execute(_plan(registry, "open_app", "öffne notepad"))
@@ -192,7 +189,7 @@ class TestWindowsExecutorGatedActions:
     def test_open_app_launch_failure_is_reported(self, registry, monkeypatch):
         monkeypatch.setattr(actions_module, "_require_windows", lambda action: None)
 
-        def boom(argv, shell, cwd=None):
+        def boom(argv, shell, cwd=None, **kwargs):
             raise OSError("access denied")
 
         monkeypatch.setattr(actions_module.subprocess, "Popen", boom)

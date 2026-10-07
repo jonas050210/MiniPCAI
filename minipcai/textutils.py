@@ -3,11 +3,27 @@
 All helpers are pure functions without side effects. They operate on German
 user input and produce validated, structured values that downstream components
 (security, executors) can rely on.
+
+Three normalizations exist on purpose:
+
+``normalize``
+    Unicode NFC, lowercase, punctuation removed, whitespace collapsed. This is
+    the "human readable" form used for search terms and error messages.
+``fold``
+    Like ``normalize``, but additionally folds umlauts/ß and strips every
+    diacritic, so ``"öffne"``, ``"oeffne"`` and NFD-encoded ``"o\u0308ffne"``
+    all collapse to the same key. Used for alias matching only, so that a
+    registry written in NFC still matches keyboard layouts and mail clients
+    that emit NFD.
+``normalize_for_model``
+    Like ``normalize`` but keeps arithmetic operators, used as the vectorizer
+    preprocessor so that ``"12*4"`` survives while punctuation/casing does not.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _WORD_RE = re.compile(r"[^\w\s]+", re.UNICODE)  # \w includes umlauts and sz in Python 3
 _SPACES_RE = re.compile(r"\s+")
@@ -16,11 +32,38 @@ _SPACES_RE = re.compile(r"\s+")
 # recognizable ("was ist 12*4" must not become "was ist 12 4").
 _MODEL_KEEP_RE = re.compile(r"[^\w\s+\-*/%().]+", re.UNICODE)
 
+# Fold table for alias matching: German umlauts/ß plus a few common Latin
+# letters that appear in product names ("Ø", "Å").
+_FOLD_TABLE = str.maketrans(
+    {"ä": "a", "ö": "o", "ü": "u", "ß": "ss", "å": "a", "æ": "ae", "ø": "o", "œ": "oe"}
+)
+
+
+def to_nfc(text: str) -> str:
+    """Return the NFC (composed) form of ``text``.
+
+    Windows input arrives in whatever form the keyboard/browser produced:
+    an emoji picker, a mail client or a copy/paste from macOS can deliver NFD
+    (``o`` + combining diaeresis), which would otherwise be stripped as
+    "punctuation" and turn ``"öffne"`` into ``"o ffne"``.
+    """
+    return unicodedata.normalize("NFC", text)
+
 
 def normalize(text: str) -> str:
     """Lowercase, strip punctuation and collapse whitespace."""
-    text = _WORD_RE.sub(" ", text.lower())
+    text = _WORD_RE.sub(" ", to_nfc(text).lower())
     return _SPACES_RE.sub(" ", text).strip()
+
+
+def fold(text: str) -> str:
+    """Canonical alias key: case-, accent- and punctuation-insensitive."""
+    folded = normalize(text).translate(_FOLD_TABLE)
+    # Drop remaining diacritics that survived NFC (e.g. "ć"), then collapse
+    # any whitespace the decomposition introduced.
+    decomposed = unicodedata.normalize("NFD", folded)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return _SPACES_RE.sub(" ", stripped).strip()
 
 
 def normalize_for_model(text: str) -> str:
@@ -30,7 +73,7 @@ def normalize_for_model(text: str) -> str:
     variants of a request map to the same features, while calculator requests
     keep their operators for the character n-grams.
     """
-    text = _MODEL_KEEP_RE.sub(" ", text.lower())
+    text = _MODEL_KEEP_RE.sub(" ", to_nfc(text).lower())
     return _SPACES_RE.sub(" ", text).strip()
 
 
@@ -53,6 +96,82 @@ _MATH_WORD_OPERATIONS: tuple[tuple[str, str], ...] = (
     ("quadrat", "**2"),
 )
 
+# ---------------------------------------------------------------------------
+# German number words (for calculations like "zwanzig plus dreißig")
+# ---------------------------------------------------------------------------
+
+_NUMBER_WORD_UNITS: dict[str, int] = {
+    "null": 0, "eins": 1, "ein": 1, "eine": 1, "einen": 1, "einem": 1, "einer": 1,
+    "zwei": 2, "zwo": 2, "drei": 3, "vier": 4, "fünf": 5, "fuenf": 5,
+    "sechs": 6, "sieben": 7, "acht": 8, "neun": 9,
+}
+_NUMBER_WORD_SPECIALS: dict[str, int] = {
+    "zehn": 10, "elf": 11, "zwölf": 12, "zwoelf": 12, "dreizehn": 13,
+    "vierzehn": 14, "fünfzehn": 15, "fuenfzehn": 15, "sechzehn": 16,
+    "siebzehn": 17, "achtzehn": 18, "neunzehn": 19,
+}
+_NUMBER_WORD_TENS: dict[str, int] = {
+    "zwanzig": 20, "dreißig": 30, "dreissig": 30, "vierzig": 40,
+    "fünfzig": 50, "fuenfzig": 50, "sechzig": 60, "siebzig": 70,
+    "achtzig": 80, "neunzig": 90,
+}
+_NUMBER_WORD_SCALES: dict[str, int] = {"hundert": 100, "tausend": 1000}
+
+
+def parse_number_word(word: str) -> int | None:
+    """Parse a German number word (up to a few thousand) into an integer.
+
+    Handles the simple forms, the inverted compounds ("fünfundzwanzig"),
+    "hundert"/"tausend" multipliers and their combinations such as
+    "zweihundertfünfzig". Returns ``None`` for anything else.
+    """
+    word = fold(word.strip().lower())
+    if not word:
+        return None
+    flat = {k: v for k, v in
+            {**_NUMBER_WORD_UNITS, **_NUMBER_WORD_SPECIALS, **_NUMBER_WORD_TENS}.items()}
+    flat = {fold(k): v for k, v in flat.items()}
+    scales = {fold(k): v for k, v in _NUMBER_WORD_SCALES.items()}
+    if word in flat:
+        return flat[word]
+
+    total = 0
+    rest = word
+    for scale_word, factor in sorted(scales.items(), key=lambda item: -len(item[0])):
+        if scale_word in rest:
+            prefix, _, suffix = rest.partition(scale_word)
+            multiplier = 1
+            if prefix:
+                if prefix in flat:
+                    multiplier = flat[prefix]
+                elif prefix == "ein" or prefix == "eine":
+                    multiplier = 1
+                else:
+                    return None
+            total += multiplier * factor
+            rest = suffix
+    if rest:
+        if rest in flat:
+            total += flat[rest]
+        elif "und" in rest:  # "fünfundzwanzig"
+            left, _, right = rest.partition("und")
+            if left in flat and right in flat:
+                total += flat[left] + flat[right]
+            else:
+                return None
+        else:
+            return None
+    return total if total else None
+
+
+def _words_to_digits(text: str) -> str:
+    """Replace German number words with digits (used for calculations only)."""
+    words = []
+    for token in text.split():
+        parsed = parse_number_word(token.strip(".,!?"))
+        words.append(str(parsed) if parsed is not None else token)
+    return " ".join(words)
+
 # A "math run" is a maximal sequence of digits, operators, dots, parens, spaces.
 _MATH_RUN_RE = re.compile(r"[\d\s+\-*/().%]+")
 _DECIMAL_COMMA_RE = re.compile(r"(\d),(\d)")
@@ -65,14 +184,74 @@ def _replace_math_words(text: str) -> str:
     return text
 
 
+#: "20 prozent von 80" / "20% von 80" / "20 % von 80"
+_PERCENT_RE = re.compile(
+    r"(?P<percent>\d+(?:\.\d+)?)\s*(?:%|prozent)\s*"
+    r"(?:(?:von|vom)\s*(?P<base>\d+(?:\.\d+)?))?"
+)
+#: "addiere 5 und 3", "subtrahiere 3 von 5", "multipliziere 5 mit 3"
+_OPERATION_VERB_RES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\b(?:addiere|summiere)\s+(\d+(?:\.\d+)?)\s+und\s+(\d+(?:\.\d+)?)"),
+     r"(\1 + \2)"),
+    (re.compile(r"\b(?:subtrahiere)\s+(\d+(?:\.\d+)?)\s+von\s+(\d+(?:\.\d+)?)"),
+     r"(\2 - \1)"),
+    (re.compile(r"\b(?:multipliziere|vervielfache)\s+(\d+(?:\.\d+)?)\s+mit\s+(\d+(?:\.\d+)?)"),
+     r"(\1 * \2)"),
+    (re.compile(r"\b(?:teile)\s+(\d+(?:\.\d+)?)\s+durch\s+(\d+(?:\.\d+)?)"),
+     r"(\1 / \2)"),
+)
+#: currency and filler words that carry no meaning for the calculation
+_MATH_NOISE_RE = re.compile(r"\b(?:euro|eur|cent|cents|bitte|mal\s+eben)\b")
+#: "die hälfte von 90" -> "(90 * 0.5)"; the optional article is consumed too,
+#: because "ein viertel von 80" has already become "1 viertel von 80".
+_FRACTION_OF_RE = re.compile(
+    r"\b(?:die\s+|der\s+|ein(?:e|en)?\s+|1\s+)?"
+    r"(?P<fraction>hälfte|haelfte|drittel|viertel)\s+von\s+(?P<base>\d+(?:\.\d+)?)"
+)
+_FRACTION_FACTORS: dict[str, str] = {
+    "hälfte": "0.5",
+    "haelfte": "0.5",
+    "viertel": "0.25",
+}
+
+
+def _rewrite_fractions(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        base = match.group("base")
+        fraction = match.group("fraction")
+        if fraction == "drittel":
+            return f"({base} / 3)"
+        return f"({base} * {_FRACTION_FACTORS[fraction]})"
+    return _FRACTION_OF_RE.sub(replace, text)
+
+
+def _rewrite_percentages(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        percent = match.group("percent")
+        base = match.group("base")
+        if base:
+            return f"({percent} * {base} / 100)"
+        return f"({percent} / 100)"
+    return _PERCENT_RE.sub(replace, text)
+
+
 def extract_math_expression(text: str) -> str | None:
     """Extract an arithmetic expression from a German request.
 
-    Returns ``None`` when the text contains no usable expression. The returned
-    string still has to pass the strict AST validation in ``calc_engine``.
+    Understands digits, German number words, the four operations in words,
+    percentages ("15 prozent von 80"), fractions ("die hälfte von 90") and
+    drops currency words. Returns ``None`` when the text contains no usable
+    expression; the result still has to pass the strict AST validation in
+    ``calc_engine``.
     """
-    prepared = _DECIMAL_COMMA_RE.sub(r"\1.\2", text)
+    prepared = _DECIMAL_COMMA_RE.sub(r"\1.\2", text.lower())
+    prepared = _words_to_digits(prepared)
+    for pattern, replacement in _OPERATION_VERB_RES:
+        prepared = pattern.sub(replacement, prepared)
+    prepared = _rewrite_percentages(prepared)
+    prepared = _rewrite_fractions(prepared)
     prepared = _replace_math_words(prepared)
+    prepared = _MATH_NOISE_RE.sub(" ", prepared)
     best: str | None = None
     for run in _MATH_RUN_RE.findall(prepared):
         candidate = run.strip()
@@ -92,6 +271,23 @@ def extract_math_expression(text: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Timer input
 # ---------------------------------------------------------------------------
+
+
+def bigram_dice(a: str, b: str) -> float:
+    """Dice coefficient over character bigrams (0.0 .. 1.0).
+
+    Used to rank equally distant spellings: ``maalprogramm`` is one edit away
+    from both ``malprogramm`` and ``mailprogramm``, but shares more bigrams with
+    the first one, which is what the user meant.
+    """
+    def bigrams(value: str) -> set[str]:
+        padded = f" {value} "
+        return {padded[i : i + 2] for i in range(len(padded) - 1)}
+
+    left, right = bigrams(a), bigrams(b)
+    if not left or not right:
+        return 0.0
+    return 2 * len(left & right) / (len(left) + len(right))
 
 
 def damerau_levenshtein(a: str, b: str) -> int:
@@ -234,3 +430,70 @@ def extract_search_term(text: str) -> str:
     """
     tokens = [t for t in normalize(text).split() if t not in _SEARCH_STOP_TOKENS]
     return " ".join(tokens)
+
+
+# ---------------------------------------------------------------------------
+# web_search queries
+# ---------------------------------------------------------------------------
+
+# Words that only introduce a web search and carry no search meaning.
+_WEB_SEARCH_STOP_TOKENS = frozenset(
+    {
+        "suche", "such", "suchst", "sucht", "durchsuche", "recherchiere",
+        "im", "in", "dem", "der", "den", "das", "die", "ein", "eine", "einen",
+        "nach", "web", "internet", "websuche", "online", "netz", "google",
+        "bitte", "mal", "mach", "mir", "bei", "auf", "für", "fuer", "und",
+        "was", "ist", "sind", "über", "ueber", "zu", "zum", "zur", "von",
+        "the", "and", "search", "for", "about",
+    }
+)
+
+
+# Words that must be present for a *default* web search. Without one of them a
+# request is not a search - "hallo" must not silently become "search the web
+# for hallo".
+_WEB_SEARCH_TRIGGERS = frozenset(
+    {
+        "suche", "such", "suchst", "sucht", "durchsuche", "recherchiere",
+        "recherche", "googeln", "google", "internet", "web", "websuche",
+        "online", "nachschlagen", "schau", "guck",
+    }
+)
+
+
+def has_web_search_trigger(text: str) -> bool:
+    """True when the text explicitly asks for a web search."""
+    tokens = set(normalize(text).split())
+    return bool(tokens & _WEB_SEARCH_TRIGGERS)
+
+
+def extract_web_query(text: str, strip_aliases: tuple[str, ...] = ()) -> str:
+    """Extract the search query of a "search the web" request.
+
+    ``strip_aliases`` are registry aliases (e.g. the name of the search
+    provider) that are removed from the query. Matching happens on the folded
+    text, but the *original* characters are returned, so ``"Bäume"`` stays
+    ``"Bäume"`` instead of becoming ``"baume"``.
+    """
+    tokens = normalize(text).split()
+    if not tokens:
+        return ""
+    folded = [fold(token) for token in tokens]
+    drop = [False] * len(tokens)
+
+    for alias in strip_aliases:
+        parts = fold(alias).split()
+        if not parts:
+            continue
+        width = len(parts)
+        for start in range(len(folded) - width + 1):
+            if folded[start : start + width] == parts:
+                for index in range(start, start + width):
+                    drop[index] = True
+
+    for index, _token in enumerate(tokens):
+        if folded[index] in _WEB_SEARCH_STOP_TOKENS:
+            drop[index] = True
+
+    return " ".join(token for token, dropped in zip(tokens, drop, strict=True) if not dropped)
+

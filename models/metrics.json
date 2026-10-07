@@ -1,45 +1,48 @@
 {
-  "created_at": "2026-10-06T18:37:46+00:00",
+  "created_at": "2026-10-07T04:56:03+00:00",
   "dataset": {
-    "path": "/home/user/MiniPCAI/data/intent_dataset.v2.jsonl",
-    "version": 2,
-    "sha256": "2298a1af6028b6f599c979a0d35bf14e1bc545499aeaeee9bda2b571da6f5d9e",
-    "n_examples": 1470,
+    "path": "minipcai/data/intent_dataset.v4.jsonl",
+    "version": 4,
+    "sha256": "5eaeef8dab9a2c0428b0d9e29b488eed52b0b44d7faf61d6c9f6006b7691da02",
+    "n_examples": 2372,
     "label_counts": {
-      "open_app": 159,
-      "close_app": 123,
-      "open_url": 88,
-      "open_file": 93,
-      "open_folder": 89,
-      "find_file": 87,
-      "sys_cpu": 64,
-      "sys_ram": 74,
-      "sys_disk": 89,
-      "sys_summary": 85,
-      "calc": 89,
-      "timer": 95,
-      "unknown": 335
+      "open_app": 273,
+      "close_app": 244,
+      "open_url": 142,
+      "open_file": 183,
+      "open_folder": 158,
+      "find_file": 102,
+      "web_search": 331,
+      "sys_cpu": 71,
+      "sys_ram": 85,
+      "sys_disk": 100,
+      "sys_summary": 102,
+      "calc": 136,
+      "timer": 114,
+      "unknown": 331
     },
     "category_counts": {
-      "normal": 852,
-      "typo": 283,
-      "unknown": 240,
+      "normal": 1381,
+      "typo": 660,
+      "unknown": 236,
       "ambiguous": 95
     }
   },
   "split": {
     "seed": 42,
-    "train": 1029,
-    "val": 220,
-    "test": 221
+    "train": 1660,
+    "val": 356,
+    "test": 356
   },
   "thresholds": {
-    "min_confidence": 0.5,
-    "min_margin": 0.3
+    "min_confidence": 0.7,
+    "min_margin": 0.35
   },
   "threshold_calibration": {
     "grids": {
       "min_confidence": [
+        0.25,
+        0.3,
         0.35,
         0.4,
         0.45,
@@ -51,6 +54,7 @@
         0.75
       ],
       "min_margin": [
+        0.05,
         0.1,
         0.15,
         0.2,
@@ -61,149 +65,195 @@
       "wrong_accept_penalty": 10.0,
       "unknown_accept_penalty": 25.0
     },
+    "budget": {
+      "max_wrong_accepts": 0,
+      "max_unnecessary_reject_rate": 0.08,
+      "max_out_of_scope_rate": 0.02,
+      "out_of_scope_budget": 7
+    },
     "chosen": {
-      "min_confidence": 0.5,
-      "min_margin": 0.3
+      "min_confidence": 0.7,
+      "min_margin": 0.35
     },
     "top_rows": [
       {
-        "min_confidence": 0.35,
-        "min_margin": 0.3,
-        "accepted_correct": 160,
+        "min_confidence": 0.7,
+        "min_margin": 0.05,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 56,
-        "score": 0.2727
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
       },
       {
-        "min_confidence": 0.4,
-        "min_margin": 0.3,
-        "accepted_correct": 160,
-        "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 56,
-        "score": 0.2727
-      },
-      {
-        "min_confidence": 0.45,
-        "min_margin": 0.3,
-        "accepted_correct": 160,
-        "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 56,
-        "score": 0.2727
-      },
-      {
-        "min_confidence": 0.5,
-        "min_margin": 0.3,
-        "accepted_correct": 160,
-        "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 56,
-        "score": 0.2727
-      },
-      {
-        "min_confidence": 0.55,
-        "min_margin": 0.3,
-        "accepted_correct": 159,
-        "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
-      },
-      {
-        "min_confidence": 0.6,
+        "min_confidence": 0.7,
         "min_margin": 0.1,
-        "accepted_correct": 159,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
       },
       {
-        "min_confidence": 0.6,
+        "min_confidence": 0.7,
         "min_margin": 0.15,
-        "accepted_correct": 159,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
       },
       {
-        "min_confidence": 0.6,
+        "min_confidence": 0.7,
         "min_margin": 0.2,
-        "accepted_correct": 159,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
       },
       {
-        "min_confidence": 0.6,
+        "min_confidence": 0.7,
         "min_margin": 0.25,
-        "accepted_correct": 159,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
       },
       {
-        "min_confidence": 0.6,
+        "min_confidence": 0.7,
         "min_margin": 0.3,
-        "accepted_correct": 159,
+        "accepted_correct": 276,
         "accepted_wrong": 0,
-        "accepted_unknown": 4,
-        "rejected": 57,
-        "score": 0.2682
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
+      },
+      {
+        "min_confidence": 0.7,
+        "min_margin": 0.35,
+        "accepted_correct": 276,
+        "accepted_wrong": 0,
+        "accepted_unknown": 2,
+        "rejected": 78,
+        "unnecessary_rejects": 30,
+        "unnecessary_reject_rate": 0.098,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 7,
+        "score": 0.6348
+      },
+      {
+        "min_confidence": 0.75,
+        "min_margin": 0.05,
+        "accepted_correct": 269,
+        "accepted_wrong": 0,
+        "accepted_unknown": 2,
+        "rejected": 85,
+        "unnecessary_rejects": 37,
+        "unnecessary_reject_rate": 0.1209,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 6,
+        "score": 0.6152
+      },
+      {
+        "min_confidence": 0.75,
+        "min_margin": 0.1,
+        "accepted_correct": 269,
+        "accepted_wrong": 0,
+        "accepted_unknown": 2,
+        "rejected": 85,
+        "unnecessary_rejects": 37,
+        "unnecessary_reject_rate": 0.1209,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 6,
+        "score": 0.6152
+      },
+      {
+        "min_confidence": 0.75,
+        "min_margin": 0.15,
+        "accepted_correct": 269,
+        "accepted_wrong": 0,
+        "accepted_unknown": 2,
+        "rejected": 85,
+        "unnecessary_rejects": 37,
+        "unnecessary_reject_rate": 0.1209,
+        "guard_accepted_wrong": 0,
+        "guard_accepted_unknown": 6,
+        "score": 0.6152
       }
     ]
   },
   "validation": {
-    "n": 220,
-    "accuracy": 0.9409,
-    "macro_f1": 0.9506,
+    "n": 356,
+    "accuracy": 0.9691,
+    "macro_f1": 0.9673,
     "per_class": {
       "calc": {
-        "precision": 0.9231,
-        "recall": 0.8571,
-        "f1": 0.8889,
-        "support": 14
+        "precision": 0.95,
+        "recall": 0.95,
+        "f1": 0.95,
+        "support": 20
       },
       "close_app": {
         "precision": 1.0,
-        "recall": 0.9444,
-        "f1": 0.9714,
-        "support": 18
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 36
       },
       "find_file": {
-        "precision": 0.8125,
-        "recall": 1.0,
-        "f1": 0.8966,
-        "support": 13
+        "precision": 0.875,
+        "recall": 0.875,
+        "f1": 0.875,
+        "support": 16
       },
       "open_app": {
-        "precision": 0.96,
+        "precision": 0.9762,
         "recall": 1.0,
-        "f1": 0.9796,
-        "support": 24
+        "f1": 0.988,
+        "support": 41
       },
       "open_file": {
-        "precision": 0.9286,
-        "recall": 0.9286,
-        "f1": 0.9286,
-        "support": 14
+        "precision": 0.963,
+        "recall": 0.963,
+        "f1": 0.963,
+        "support": 27
       },
       "open_folder": {
         "precision": 1.0,
-        "recall": 0.9231,
-        "f1": 0.96,
-        "support": 13
+        "recall": 0.9565,
+        "f1": 0.9778,
+        "support": 23
       },
       "open_url": {
         "precision": 1.0,
         "recall": 1.0,
         "f1": 1.0,
-        "support": 13
+        "support": 22
       },
       "sys_cpu": {
         "precision": 1.0,
@@ -212,39 +262,45 @@
         "support": 10
       },
       "sys_disk": {
-        "precision": 0.9286,
-        "recall": 1.0,
-        "f1": 0.963,
-        "support": 13
+        "precision": 1.0,
+        "recall": 0.9333,
+        "f1": 0.9655,
+        "support": 15
       },
       "sys_ram": {
-        "precision": 0.9167,
-        "recall": 1.0,
-        "f1": 0.9565,
-        "support": 11
-      },
-      "sys_summary": {
         "precision": 0.9286,
         "recall": 1.0,
         "f1": 0.963,
         "support": 13
       },
-      "timer": {
-        "precision": 0.9333,
+      "sys_summary": {
+        "precision": 0.9412,
         "recall": 1.0,
-        "f1": 0.9655,
-        "support": 14
+        "f1": 0.9697,
+        "support": 16
+      },
+      "timer": {
+        "precision": 0.9444,
+        "recall": 1.0,
+        "f1": 0.9714,
+        "support": 17
       },
       "unknown": {
-        "precision": 0.9333,
-        "recall": 0.84,
-        "f1": 0.8842,
+        "precision": 0.9375,
+        "recall": 0.9,
+        "f1": 0.9184,
+        "support": 50
+      },
+      "web_search": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
         "support": 50
       }
     },
     "confusion": {
       "calc": {
-        "calc": 12,
+        "calc": 19,
         "close_app": 0,
         "find_file": 0,
         "open_app": 0,
@@ -256,13 +312,14 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 2
+        "unknown": 1,
+        "web_search": 0
       },
       "close_app": {
         "calc": 0,
-        "close_app": 17,
+        "close_app": 36,
         "find_file": 0,
-        "open_app": 1,
+        "open_app": 0,
         "open_file": 0,
         "open_folder": 0,
         "open_url": 0,
@@ -271,14 +328,15 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "find_file": {
         "calc": 0,
         "close_app": 0,
-        "find_file": 13,
+        "find_file": 14,
         "open_app": 0,
-        "open_file": 0,
+        "open_file": 1,
         "open_folder": 0,
         "open_url": 0,
         "sys_cpu": 0,
@@ -286,13 +344,14 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 1,
+        "web_search": 0
       },
       "open_app": {
         "calc": 0,
         "close_app": 0,
         "find_file": 0,
-        "open_app": 24,
+        "open_app": 41,
         "open_file": 0,
         "open_folder": 0,
         "open_url": 0,
@@ -301,14 +360,15 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "open_file": {
         "calc": 0,
         "close_app": 0,
-        "find_file": 0,
+        "find_file": 1,
         "open_app": 0,
-        "open_file": 13,
+        "open_file": 26,
         "open_folder": 0,
         "open_url": 0,
         "sys_cpu": 0,
@@ -316,22 +376,24 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 1
+        "unknown": 0,
+        "web_search": 0
       },
       "open_folder": {
         "calc": 0,
         "close_app": 0,
         "find_file": 0,
-        "open_app": 0,
-        "open_file": 1,
-        "open_folder": 12,
+        "open_app": 1,
+        "open_file": 0,
+        "open_folder": 22,
         "open_url": 0,
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "open_url": {
         "calc": 0,
@@ -340,13 +402,14 @@
         "open_app": 0,
         "open_file": 0,
         "open_folder": 0,
-        "open_url": 13,
+        "open_url": 22,
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "sys_cpu": {
         "calc": 0,
@@ -361,315 +424,8 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
-      },
-      "sys_disk": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 13,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_ram": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 11,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_summary": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 13,
-        "timer": 0,
-        "unknown": 0
-      },
-      "timer": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 14,
-        "unknown": 0
-      },
-      "unknown": {
-        "calc": 1,
-        "close_app": 0,
-        "find_file": 3,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 1,
-        "sys_ram": 1,
-        "sys_summary": 1,
-        "timer": 1,
-        "unknown": 42
-      }
-    },
-    "category_decisions": {
-      "normal": {
-        "n": 123,
-        "accepted_correct": 119,
-        "accepted_wrong": 0,
-        "rejected": 4
-      },
-      "typo": {
-        "n": 47,
-        "accepted_correct": 41,
-        "accepted_wrong": 0,
-        "rejected": 6
-      },
-      "unknown": {
-        "n": 34,
-        "accepted_correct": 0,
-        "accepted_wrong": 0,
-        "rejected": 34
-      },
-      "ambiguous": {
-        "n": 16,
-        "accepted_correct": 0,
-        "accepted_wrong": 4,
-        "rejected": 12
-      }
-    }
-  },
-  "test": {
-    "n": 221,
-    "accuracy": 0.9231,
-    "macro_f1": 0.9398,
-    "per_class": {
-      "calc": {
-        "precision": 0.9231,
-        "recall": 0.9231,
-        "f1": 0.9231,
-        "support": 13
-      },
-      "close_app": {
-        "precision": 0.9444,
-        "recall": 0.8947,
-        "f1": 0.9189,
-        "support": 19
-      },
-      "find_file": {
-        "precision": 0.9231,
-        "recall": 0.9231,
-        "f1": 0.9231,
-        "support": 13
-      },
-      "open_app": {
-        "precision": 0.8846,
-        "recall": 0.9583,
-        "f1": 0.92,
-        "support": 24
-      },
-      "open_file": {
-        "precision": 0.9333,
-        "recall": 1.0,
-        "f1": 0.9655,
-        "support": 14
-      },
-      "open_folder": {
-        "precision": 0.9333,
-        "recall": 1.0,
-        "f1": 0.9655,
-        "support": 14
-      },
-      "open_url": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 13
-      },
-      "sys_cpu": {
-        "precision": 0.9,
-        "recall": 1.0,
-        "f1": 0.9474,
-        "support": 9
-      },
-      "sys_disk": {
-        "precision": 0.9333,
-        "recall": 1.0,
-        "f1": 0.9655,
-        "support": 14
-      },
-      "sys_ram": {
-        "precision": 0.9167,
-        "recall": 1.0,
-        "f1": 0.9565,
-        "support": 11
-      },
-      "sys_summary": {
-        "precision": 0.9286,
-        "recall": 1.0,
-        "f1": 0.963,
-        "support": 13
-      },
-      "timer": {
-        "precision": 0.875,
-        "recall": 1.0,
-        "f1": 0.9333,
-        "support": 14
-      },
-      "unknown": {
-        "precision": 0.9268,
-        "recall": 0.76,
-        "f1": 0.8352,
-        "support": 50
-      }
-    },
-    "confusion": {
-      "calc": {
-        "calc": 12,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 1
-      },
-      "close_app": {
-        "calc": 0,
-        "close_app": 17,
-        "find_file": 0,
-        "open_app": 1,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 1
-      },
-      "find_file": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 12,
-        "open_app": 0,
-        "open_file": 1,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_app": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 23,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 1
-      },
-      "open_file": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 14,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_folder": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 14,
-        "open_url": 0,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "open_url": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 13,
-        "sys_cpu": 0,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
-      },
-      "sys_cpu": {
-        "calc": 0,
-        "close_app": 0,
-        "find_file": 0,
-        "open_app": 0,
-        "open_file": 0,
-        "open_folder": 0,
-        "open_url": 0,
-        "sys_cpu": 9,
-        "sys_disk": 0,
-        "sys_ram": 0,
-        "sys_summary": 0,
-        "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "sys_disk": {
         "calc": 0,
@@ -684,7 +440,8 @@
         "sys_ram": 0,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 1,
+        "web_search": 0
       },
       "sys_ram": {
         "calc": 0,
@@ -696,10 +453,11 @@
         "open_url": 0,
         "sys_cpu": 0,
         "sys_disk": 0,
-        "sys_ram": 11,
+        "sys_ram": 13,
         "sys_summary": 0,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "sys_summary": {
         "calc": 0,
@@ -712,9 +470,10 @@
         "sys_cpu": 0,
         "sys_disk": 0,
         "sys_ram": 0,
-        "sys_summary": 13,
+        "sys_summary": 16,
         "timer": 0,
-        "unknown": 0
+        "unknown": 0,
+        "web_search": 0
       },
       "timer": {
         "calc": 0,
@@ -728,64 +487,453 @@
         "sys_disk": 0,
         "sys_ram": 0,
         "sys_summary": 0,
-        "timer": 14,
-        "unknown": 0
+        "timer": 17,
+        "unknown": 0,
+        "web_search": 0
       },
       "unknown": {
         "calc": 1,
-        "close_app": 1,
+        "close_app": 0,
         "find_file": 1,
-        "open_app": 2,
+        "open_app": 0,
         "open_file": 0,
-        "open_folder": 1,
+        "open_folder": 0,
         "open_url": 0,
-        "sys_cpu": 1,
-        "sys_disk": 1,
+        "sys_cpu": 0,
+        "sys_disk": 0,
         "sys_ram": 1,
         "sys_summary": 1,
-        "timer": 2,
-        "unknown": 38
+        "timer": 1,
+        "unknown": 45,
+        "web_search": 0
+      },
+      "web_search": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 50
       }
     },
     "category_decisions": {
       "normal": {
-        "n": 129,
-        "accepted_correct": 123,
+        "n": 204,
+        "accepted_correct": 197,
         "accepted_wrong": 0,
-        "rejected": 6
+        "rejected": 7
       },
       "typo": {
-        "n": 42,
-        "accepted_correct": 39,
+        "n": 102,
+        "accepted_correct": 79,
         "accepted_wrong": 0,
-        "rejected": 3
+        "rejected": 23
       },
       "unknown": {
-        "n": 34,
+        "n": 39,
         "accepted_correct": 0,
-        "accepted_wrong": 3,
+        "accepted_wrong": 0,
+        "rejected": 39
+      },
+      "ambiguous": {
+        "n": 11,
+        "accepted_correct": 0,
+        "accepted_wrong": 2,
+        "rejected": 9
+      }
+    }
+  },
+  "test": {
+    "n": 356,
+    "accuracy": 0.9551,
+    "macro_f1": 0.9547,
+    "per_class": {
+      "calc": {
+        "precision": 1.0,
+        "recall": 0.8571,
+        "f1": 0.9231,
+        "support": 21
+      },
+      "close_app": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 37
+      },
+      "find_file": {
+        "precision": 0.7778,
+        "recall": 0.9333,
+        "f1": 0.8485,
+        "support": 15
+      },
+      "open_app": {
+        "precision": 0.9762,
+        "recall": 1.0,
+        "f1": 0.988,
+        "support": 41
+      },
+      "open_file": {
+        "precision": 0.9032,
+        "recall": 1.0,
+        "f1": 0.9492,
+        "support": 28
+      },
+      "open_folder": {
+        "precision": 1.0,
+        "recall": 0.9583,
+        "f1": 0.9787,
+        "support": 24
+      },
+      "open_url": {
+        "precision": 1.0,
+        "recall": 0.9524,
+        "f1": 0.9756,
+        "support": 21
+      },
+      "sys_cpu": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 11
+      },
+      "sys_disk": {
+        "precision": 0.8824,
+        "recall": 1.0,
+        "f1": 0.9375,
+        "support": 15
+      },
+      "sys_ram": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 13
+      },
+      "sys_summary": {
+        "precision": 0.9333,
+        "recall": 0.9333,
+        "f1": 0.9333,
+        "support": 15
+      },
+      "timer": {
+        "precision": 0.9444,
+        "recall": 1.0,
+        "f1": 0.9714,
+        "support": 17
+      },
+      "unknown": {
+        "precision": 0.9091,
+        "recall": 0.8163,
+        "f1": 0.8602,
+        "support": 49
+      },
+      "web_search": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 49
+      }
+    },
+    "confusion": {
+      "calc": {
+        "calc": 18,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 1,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 2,
+        "web_search": 0
+      },
+      "close_app": {
+        "calc": 0,
+        "close_app": 37,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "find_file": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 14,
+        "open_app": 0,
+        "open_file": 1,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "open_app": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 41,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "open_file": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 28,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "open_folder": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 23,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 1,
+        "web_search": 0
+      },
+      "open_url": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 1,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 20,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "sys_cpu": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 11,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "sys_disk": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 15,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "sys_ram": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 13,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "sys_summary": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 14,
+        "timer": 0,
+        "unknown": 1,
+        "web_search": 0
+      },
+      "timer": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 17,
+        "unknown": 0,
+        "web_search": 0
+      },
+      "unknown": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 4,
+        "open_app": 0,
+        "open_file": 1,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 2,
+        "sys_ram": 0,
+        "sys_summary": 1,
+        "timer": 1,
+        "unknown": 40,
+        "web_search": 0
+      },
+      "web_search": {
+        "calc": 0,
+        "close_app": 0,
+        "find_file": 0,
+        "open_app": 0,
+        "open_file": 0,
+        "open_folder": 0,
+        "open_url": 0,
+        "sys_cpu": 0,
+        "sys_disk": 0,
+        "sys_ram": 0,
+        "sys_summary": 0,
+        "timer": 0,
+        "unknown": 0,
+        "web_search": 49
+      }
+    },
+    "category_decisions": {
+      "normal": {
+        "n": 216,
+        "accepted_correct": 203,
+        "accepted_wrong": 0,
+        "rejected": 13
+      },
+      "typo": {
+        "n": 91,
+        "accepted_correct": 75,
+        "accepted_wrong": 0,
+        "rejected": 16
+      },
+      "unknown": {
+        "n": 32,
+        "accepted_correct": 0,
+        "accepted_wrong": 1,
         "rejected": 31
       },
       "ambiguous": {
-        "n": 16,
+        "n": 17,
         "accepted_correct": 0,
-        "accepted_wrong": 3,
-        "rejected": 13
+        "accepted_wrong": 6,
+        "rejected": 11
       }
     }
   },
   "safety": {
     "validation": {
       "accepted_wrong_in_scope": 0,
-      "accepted_out_of_scope": 4,
-      "rejected": 56,
-      "n": 220
+      "accepted_out_of_scope": 2,
+      "rejected": 78,
+      "n": 356
     },
     "test": {
       "accepted_wrong_in_scope": 0,
-      "accepted_out_of_scope": 6,
-      "rejected": 53,
-      "n": 221
+      "accepted_out_of_scope": 7,
+      "rejected": 71,
+      "n": 356
     }
+  },
+  "registry": {
+    "path": "minipcai/data/registry.json",
+    "sha256": "6fc53259f0455273bf1e0b51b86fba5606c9b309579ec22cae5bc967cb947039",
+    "entries": {
+      "entries": 22,
+      "searchable_folders": 2,
+      "apps": 6,
+      "files": 6,
+      "folders": 3,
+      "websites": 4,
+      "searchers": 3
+    },
+    "resolvability": {
+      "resolved": 692,
+      "total": 692,
+      "ratio": 1.0,
+      "failures": {}
+    }
+  },
+  "grouped_holdout": {
+    "folds": 5,
+    "n": 2372,
+    "groups": 1609,
+    "accuracy": 0.9545,
+    "macro_f1": 0.9534,
+    "accepted_ratio": 0.7846,
+    "max_distance": 2
   }
 }

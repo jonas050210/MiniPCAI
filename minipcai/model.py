@@ -8,7 +8,9 @@ of the code base.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -18,7 +20,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, Pipeline
 
+from minipcai import paths
 from minipcai.textutils import normalize_for_model
+
+logger = logging.getLogger("minipcai.model")
 
 MODEL_FORMAT = "minipcai-sklearn-v1"
 
@@ -43,6 +48,47 @@ class IntentModel(Protocol):
 
 class ModelError(RuntimeError):
     """Raised when a model artifact is missing or incompatible."""
+
+
+def _sha256_of(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def verify_dataset_fingerprint(metadata: dict[str, Any]) -> None:
+    """Refuse a model that does not belong to the dataset on this machine.
+
+    A model artifact is only meaningful together with the data it was trained
+    on. When the recorded dataset is unavailable (moved checkout, other
+    machine) the *packaged* dataset is used as the reference instead, so a
+    stale model.joblib cannot silently run against newer training data.
+    """
+    dataset = metadata.get("dataset") if isinstance(metadata, dict) else None
+    if not isinstance(dataset, dict):
+        return
+    recorded = dataset.get("sha256")
+    if not isinstance(recorded, str) or len(recorded) != 64:
+        return
+    candidates: list[Path] = []
+    recorded_path = dataset.get("path")
+    if isinstance(recorded_path, str) and recorded_path:
+        candidates.append(Path(recorded_path))
+    packaged = paths.default_dataset_path()
+    if packaged not in candidates:
+        candidates.append(packaged)
+    for candidate in candidates:
+        actual = _sha256_of(candidate)
+        if actual is None:
+            continue
+        if actual != recorded:
+            raise ModelError(
+                f"'{candidate}' does not match the dataset this model was trained on "
+                f"(recorded sha256 {recorded[:12]}…, actual {actual[:12]}…). "
+                "Retrain with 'minipcai-train' after changing the dataset."
+            )
+        return
 
 
 def build_estimator() -> Pipeline:
@@ -123,7 +169,9 @@ class SklearnIntentClassifier:
         joblib.dump(payload, path)
 
     @classmethod
-    def load(cls, path: Path | str) -> SklearnIntentClassifier:
+    def load(
+        cls, path: Path | str, verify_dataset: bool = True
+    ) -> SklearnIntentClassifier:
         path = Path(path)
         if not path.is_file():
             raise ModelError(
@@ -145,10 +193,13 @@ class SklearnIntentClassifier:
             raise ModelError("model artifact declares no valid, unique labels")
         if "estimator" not in payload:
             raise ModelError("model artifact contains no estimator")
+        metadata = payload.get("metadata") or {}
+        if verify_dataset:
+            verify_dataset_fingerprint(metadata)
         return cls(
             estimator=payload["estimator"],
             labels=tuple(labels),
-            metadata=payload.get("metadata") or {},
+            metadata=metadata,
         )
 
 

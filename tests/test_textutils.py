@@ -155,3 +155,66 @@ class TestSearchTermExtraction:
         assert extract_search_term("finde ../../etc/passwd") == "etc passwd"
         term = extract_search_term("suche C:\\Windows\\system32")
         assert "/" not in term and "\\" not in term
+
+
+class TestBigramDice:
+    def test_identical_words_score_one(self):
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("malprogramm", "malprogramm") == 1.0
+
+    def test_shared_bigrams_rank_the_intended_alias_higher(self):
+        """``maalprogramm`` is one edit from both aliases; bigrams decide."""
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("maalprogramm", "malprogramm") > bigram_dice(
+            "maalprogramm", "mailprogramm"
+        )
+
+    def test_unrelated_words_score_low(self):
+        from minipcai.textutils import bigram_dice
+
+        assert bigram_dice("notepad", "wikipedia") < 0.2
+
+
+class TestNumberWords:
+    def test_simple_and_compound_number_words(self):
+        from minipcai.textutils import parse_number_word
+
+        assert parse_number_word("zwanzig") == 20
+        assert parse_number_word("fünfundzwanzig") == 25
+        assert parse_number_word("zweihundert") == 200
+        assert parse_number_word("dreitausend") == 3000
+        assert parse_number_word("zwölf") == 12
+        assert parse_number_word("fuenfzig") == 50
+
+    def test_non_number_words_are_rejected(self):
+        from minipcai.textutils import parse_number_word
+
+        assert parse_number_word("notepad") is None
+        assert parse_number_word("neumann") is None
+        assert parse_number_word("") is None
+
+
+class TestMathPhrases:
+    def test_percentages(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("was ist 15 prozent von 80") == "(15 * 80 / 100)"
+        assert extract_math_expression("20% von 50 euro") == "(20 * 50 / 100)"
+        assert extract_math_expression("wie viel sind 30 prozent") == "(30 / 100)"
+
+    def test_number_words_and_operation_verbs(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("addiere zwanzig und dreißig") == "(20 + 30)"
+        assert extract_math_expression("subtrahiere 5 von 20") == "(20 - 5)"
+        assert extract_math_expression("multipliziere 6 mit 7") == "(6 * 7)"
+        assert extract_math_expression("rechne fünfundzwanzig mal vier") == "25 * 4"
+
+    def test_fractions_of_numbers(self):
+        from minipcai.textutils import extract_math_expression
+
+        assert extract_math_expression("die hälfte von 90") == "(90 * 0.5)"
+        assert extract_math_expression("ein viertel von 100") == "(100 * 0.25)"
+        assert extract_math_expression("ein drittel von 30") == "(30 / 3)"

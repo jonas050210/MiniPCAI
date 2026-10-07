@@ -38,7 +38,7 @@ class TestLoading:
         with pytest.raises(RegistryError, match="unknown registry keys"):
             Registry.load(path)
 
-    def test_unknown_entry_field(self, tmp_path):
+    def test_unknown_entry_field(self, tmp_path, permissive_policy):
         path = tmp_path / "registry.json"
         path.write_text(
             json.dumps({
@@ -48,9 +48,9 @@ class TestLoading:
             encoding="utf-8",
         )
         with pytest.raises(RegistryError, match="unknown fields"):
-            Registry.load(path)
+            Registry.load(path, policy=permissive_policy)
 
-    def test_duplicate_alias_across_entries_rejected(self, tmp_path):
+    def test_duplicate_alias_across_entries_rejected(self, tmp_path, permissive_policy):
         path = tmp_path / "registry.json"
         path.write_text(
             json.dumps({
@@ -63,9 +63,9 @@ class TestLoading:
             encoding="utf-8",
         )
         with pytest.raises(RegistryError, match="alias 'editor' is used by both"):
-            Registry.load(path)
+            Registry.load(path, policy=permissive_policy)
 
-    def test_duplicate_id_rejected(self, tmp_path):
+    def test_duplicate_id_rejected(self, tmp_path, permissive_policy):
         path = tmp_path / "registry.json"
         path.write_text(
             json.dumps({
@@ -76,7 +76,7 @@ class TestLoading:
             encoding="utf-8",
         )
         with pytest.raises(RegistryError, match="duplicate entry id"):
-            Registry.load(path)
+            Registry.load(path, policy=permissive_policy)
 
     @pytest.mark.parametrize(
         "target",
@@ -110,7 +110,7 @@ class TestLoading:
         with pytest.raises(RegistryError, match="http"):
             Registry.load(path)
 
-    def test_searchable_only_on_folders(self, tmp_path):
+    def test_searchable_only_on_folders(self, tmp_path, permissive_policy):
         path = tmp_path / "registry.json"
         path.write_text(
             json.dumps({
@@ -121,7 +121,7 @@ class TestLoading:
             encoding="utf-8",
         )
         with pytest.raises(RegistryError, match="only folders can be searchable"):
-            Registry.load(path)
+            Registry.load(path, policy=permissive_policy)
 
     def test_zero_version_rejected(self, tmp_path):
         path = tmp_path / "registry.json"

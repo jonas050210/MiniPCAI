@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-# The 12 supported MVP actions.
+# The supported actions. Adding one here requires dataset examples (see
+# scripts/generate_dataset.py) and, for new registry-backed intents, a section
+# in the registry schema.
 ACTION_INTENTS: tuple[str, ...] = (
     "open_app",
     "close_app",
@@ -10,6 +12,7 @@ ACTION_INTENTS: tuple[str, ...] = (
     "open_file",
     "open_folder",
     "find_file",
+    "web_search",
     "sys_cpu",
     "sys_ram",
     "sys_disk",
@@ -23,14 +26,16 @@ UNKNOWN_LABEL = "unknown"
 
 ALL_LABELS: tuple[str, ...] = ACTION_INTENTS + (UNKNOWN_LABEL,)
 
-# Short English descriptions used by the CLI/UI help output.
+# Short English descriptions used by the CLI help, the UI help panel and the
+# "what can you do" answer.
 INTENT_DESCRIPTIONS: dict[str, str] = {
     "open_app": "Open a registered application",
-    "close_app": "Close a registered application",
+    "close_app": "Close a registered application (asks before acting)",
     "open_url": "Open a registered website in the browser",
-    "open_file": "Open a registered file",
+    "open_file": "Open a registered document",
     "open_folder": "Open a registered folder",
     "find_file": "Search for files by name inside searchable registered folders",
+    "web_search": "Search the web through a registered search provider (asks before acting)",
     "sys_cpu": "Report CPU usage",
     "sys_ram": "Report RAM usage",
     "sys_disk": "Report disk usage",
@@ -40,7 +45,9 @@ INTENT_DESCRIPTIONS: dict[str, str] = {
     "unknown": "Request is unknown, unsupported or ambiguous",
 }
 
-# Which registry section provides the logical target for an intent.
+# Which registry section provides the logical target for an intent. Intents
+# with a free parameter (find_file, web_search, calc, timer) are resolved by
+# dedicated parsers instead.
 TARGETED_INTENTS: dict[str, str] = {
     "open_app": "apps",
     "close_app": "apps",
@@ -49,15 +56,14 @@ TARGETED_INTENTS: dict[str, str] = {
     "open_folder": "folders",
 }
 
-REGISTRY_SECTIONS: tuple[str, ...] = ("apps", "files", "folders", "websites")
+PARAMETERIZED_INTENTS: tuple[str, ...] = ("find_file", "web_search", "calc", "timer")
 
-# Intents that need no target resolution at all.
-NO_TARGET_INTENTS: tuple[str, ...] = (
-    "find_file",
-    "sys_cpu",
-    "sys_ram",
-    "sys_disk",
-    "sys_summary",
-    "calc",
-    "timer",
+REGISTRY_SECTIONS: tuple[str, ...] = ("apps", "files", "folders", "websites", "searchers")
+
+# Human-readable capability overview used in the "unknown request" reply and by
+# the help panel.
+CAPABILITY_OVERVIEW: str = (
+    "I can open and close registered apps, open registered files, folders and "
+    "websites, find files, search the web, report system information, calculate "
+    "and set timers."
 )

@@ -1,33 +1,34 @@
 {
   "model_format": "minipcai-sklearn-v1",
-  "created_at": "2026-10-06T18:37:46+00:00",
+  "created_at": "2026-10-07T04:56:03+00:00",
   "trained_on": "Linux-6.1.158+-x86_64-with-glibc2.36",
   "python_version": "3.11.2",
   "sklearn_version": "1.9.1",
   "dataset": {
-    "path": "/home/user/MiniPCAI/data/intent_dataset.v2.jsonl",
-    "version": 2,
-    "sha256": "2298a1af6028b6f599c979a0d35bf14e1bc545499aeaeee9bda2b571da6f5d9e",
-    "n_examples": 1470,
+    "path": "minipcai/data/intent_dataset.v4.jsonl",
+    "version": 4,
+    "sha256": "5eaeef8dab9a2c0428b0d9e29b488eed52b0b44d7faf61d6c9f6006b7691da02",
+    "n_examples": 2372,
     "label_counts": {
-      "open_app": 159,
-      "close_app": 123,
-      "open_url": 88,
-      "open_file": 93,
-      "open_folder": 89,
-      "find_file": 87,
-      "sys_cpu": 64,
-      "sys_ram": 74,
-      "sys_disk": 89,
-      "sys_summary": 85,
-      "calc": 89,
-      "timer": 95,
-      "unknown": 335
+      "open_app": 273,
+      "close_app": 244,
+      "open_url": 142,
+      "open_file": 183,
+      "open_folder": 158,
+      "find_file": 102,
+      "web_search": 331,
+      "sys_cpu": 71,
+      "sys_ram": 85,
+      "sys_disk": 100,
+      "sys_summary": 102,
+      "calc": 136,
+      "timer": 114,
+      "unknown": 331
     },
     "category_counts": {
-      "normal": 852,
-      "typo": 283,
-      "unknown": 240,
+      "normal": 1381,
+      "typo": 660,
+      "unknown": 236,
       "ambiguous": 95
     }
   },
@@ -44,7 +45,8 @@
     "sys_ram",
     "sys_summary",
     "timer",
-    "unknown"
+    "unknown",
+    "web_search"
   ],
   "feature_config": {
     "word": {
@@ -73,20 +75,39 @@
   },
   "split": {
     "seed": 42,
-    "train": 1029,
-    "val": 220,
-    "test": 221
+    "train": 1660,
+    "val": 356,
+    "test": 356
   },
   "thresholds": {
-    "min_confidence": 0.5,
-    "min_margin": 0.3
+    "min_confidence": 0.7,
+    "min_margin": 0.35
   },
   "metrics_summary": {
-    "test_accuracy": 0.9231,
-    "test_macro_f1": 0.9398
+    "test_accuracy": 0.9551,
+    "test_macro_f1": 0.9547
   },
   "safety_summary": {
     "test_accepted_wrong_in_scope": 0,
-    "test_accepted_out_of_scope": 6
+    "test_accepted_out_of_scope": 7
+  },
+  "registry": {
+    "path": "minipcai/data/registry.json",
+    "sha256": "6fc53259f0455273bf1e0b51b86fba5606c9b309579ec22cae5bc967cb947039",
+    "entries": {
+      "entries": 22,
+      "searchable_folders": 2,
+      "apps": 6,
+      "files": 6,
+      "folders": 3,
+      "websites": 4,
+      "searchers": 3
+    },
+    "resolvability": {
+      "resolved": 692,
+      "total": 692,
+      "ratio": 1.0,
+      "failures": {}
+    }
   }
 }

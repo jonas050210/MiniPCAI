@@ -153,3 +153,256 @@ class TestTrainCommand:
         assert (tmp_path / "cli_models" / "metadata.json").is_file()
         assert (tmp_path / "cli_models" / "metrics.json").is_file()
         assert "training report" in capsys.readouterr().out
+
+
+class TestConfirmationCommand:
+    def test_non_interactive_confirmation_requires_yes(
+        self, capsys, trained_model, registry_factory, tmp_path
+    ):
+        code = main([
+            "ask", "schließe notepad",
+            *_common(registry_factory(), trained_model, tmp_path / "audit.jsonl"),
+        ])
+        assert code == 1
+        captured = capsys.readouterr()
+        assert "[confirmation]" in captured.out
+        assert "--yes" in captured.err
+        # nothing was executed
+        assert not (tmp_path / "audit.jsonl").read_text(encoding="utf-8").count(
+            '"event": "action_result"'
+        )
+
+    def test_yes_confirms_automatically(self, capsys, trained_model, registry_factory, tmp_path):
+        audit_path = tmp_path / "audit.jsonl"
+        code = main([
+            "ask", "schließe notepad", "--yes",
+            *_common(registry_factory(), trained_model, audit_path),
+        ])
+        assert code == 0
+        assert "[ok]" in capsys.readouterr().out
+        assert '"event": "action_result"' in audit_path.read_text(encoding="utf-8")
+
+    def test_language_flag_switches_the_reply(
+        self, capsys, trained_model, registry_factory, tmp_path
+    ):
+        code = main([
+            "ask", "öffne notepad", "--language", "de",
+            *_common(registry_factory(), trained_model, tmp_path / "audit.jsonl"),
+        ])
+        assert code == 0
+        assert "öffnen" in capsys.readouterr().out.lower()
+
+    def test_environment_no_confirm_escape_hatch(
+        self, capsys, monkeypatch, trained_model, registry_factory, tmp_path
+    ):
+        monkeypatch.setenv("MINIPCAI_NO_CONFIRM", "1")
+        code = main([
+            "ask", "schließe notepad",
+            *_common(registry_factory(), trained_model, tmp_path / "audit.jsonl"),
+        ])
+        assert code == 0
+
+    def test_audit_survives_confirmation_decline(
+        self, capsys, trained_model, registry_factory, tmp_path
+    ):
+        from minipcai.audit import verify_chain
+
+        audit_path = tmp_path / "audit.jsonl"
+        main(["ask", "schließe notepad",
+              *_common(registry_factory(), trained_model, audit_path)])
+        main(["ask", "öffne notepad",
+              *_common(registry_factory(), trained_model, audit_path)])
+        ok, checked, bad_line = verify_chain(audit_path)
+        assert ok is True, bad_line
+        # confirmation ("required"), accepted + action result for the ok request
+        assert checked >= 3
+
+
+class TestSetupCommand:
+    def test_setup_creates_user_files(self, capsys, monkeypatch, tmp_path):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        code = main(["setup", "--no-file-check"])
+        # the packaged registry contains Windows paths, so the report warns,
+        # but nothing fails structurally
+        assert code in (0, 1)
+        out = capsys.readouterr().out
+        assert "Configuration:" in out
+        assert (tmp_path / "state" / "registry.json").is_file()
+        config = (tmp_path / "state" / "config.toml").read_text(encoding="utf-8")
+        assert "[minipcai]" in config
+
+    def test_setup_language_and_privacy_flags(self, capsys, monkeypatch, tmp_path):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        main(["setup", "--no-file-check", "--language", "de", "--private-audit"])
+        config = (tmp_path / "state" / "config.toml").read_text(encoding="utf-8")
+        assert 'language = "de"' in config
+        assert "store_text_in_audit = false" in config
+
+    def test_setup_keeps_an_existing_registry(self, capsys, monkeypatch, tmp_path):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        state = tmp_path / "state"
+        state.mkdir(parents=True)
+        (state / "registry.json").write_text('{"version": 1, "apps": []}', encoding="utf-8")
+        main(["setup", "--no-file-check"])
+        assert "Keeping the existing registry" in capsys.readouterr().out
+        assert json.loads((state / "registry.json").read_text(encoding="utf-8"))["apps"] == []
+
+
+class TestDoctorCommand:
+    def test_healthy_installation(self, capsys, trained_model, registry_factory, tmp_path):
+        code = main([
+            "doctor", "--no-gui-check",
+            "--model", str(trained_model),
+            "--registry", str(registry_factory()),
+            "--audit", str(tmp_path / "audit.jsonl"),
+        ])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "[OK  ] model" in out
+        assert "Everything essential works" in out
+
+    def test_json_output_and_failure_code(self, capsys, tmp_path):
+        code = main([
+            "doctor", "--no-gui-check", "--json",
+            "--model", str(tmp_path / "missing.joblib"),
+            "--registry", str(tmp_path / "missing.json"),
+            "--audit", str(tmp_path / "audit.jsonl"),
+        ])
+        assert code == 1
+        data = json.loads(capsys.readouterr().out)
+        statuses = {entry["name"]: entry["status"] for entry in data}
+        assert statuses["model"] == "fail"
+        assert statuses["registry"] == "fail"
+
+
+class TestAuditVerifyCommand:
+    def test_verify_detects_tampering(self, capsys, tmp_path):
+        from minipcai.audit import AuditLogger
+
+        path = tmp_path / "audit.jsonl"
+        audit = AuditLogger(path)
+        audit.log_event("request_result", index=0)
+        audit.log_event("request_result", index=1)
+        lines = path.read_text(encoding="utf-8").splitlines()
+        first = json.loads(lines[0])
+        first["index"] = 42
+        path.write_text(lines[0].replace('"index": 0', '"index": 42') + "\n" + lines[1] + "\n",
+                        encoding="utf-8")
+        code = main(["audit", "--audit", str(path), "--verify"])
+        assert code == 1
+        assert "hash chain broken" in capsys.readouterr().err
+
+    def test_verify_ok(self, capsys, tmp_path):
+        from minipcai.audit import AuditLogger
+
+        path = tmp_path / "audit.jsonl"
+        audit = AuditLogger(path)
+        audit.log_event("request_result", index=0)
+        code = main(["audit", "--audit", str(path), "--verify"])
+        assert code == 0
+        assert "hash chain intact" in capsys.readouterr().out
+
+class TestUiCommand:
+    def test_ui_and_gui_are_registered(self):
+        from minipcai.cli import _cmd_ui, build_parser
+
+        parser = build_parser()
+        # both names must resolve to the same handler
+        assert parser.parse_args(["ui"]).func is parser.parse_args(["gui"]).func is _cmd_ui
+
+    def test_missing_pyside6_is_reported_friendly(self, capsys, monkeypatch):
+        from minipcai import ui as ui_package
+        from minipcai.cli import main
+
+        def boom(*args, **kwargs):
+            raise ui_package.GuiUnavailable(ui_package.GUI_MISSING_HINT)
+
+        monkeypatch.setattr(ui_package, "run_ui", boom)
+        code = main(["ui"])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "PySide6" in err
+        assert "minipcai[gui]" in err
+        assert "Traceback" not in err
+
+    def test_gui_available_matches_the_environment(self):
+        from minipcai.ui import gui_available
+
+        assert isinstance(gui_available(), bool)
+
+
+class TestFirstRunExperience:
+    """`minipcai setup` on a blank machine must succeed and point at training."""
+
+    def test_setup_without_a_model_exits_zero_and_hints_training(
+        self, capsys, monkeypatch, tmp_path
+    ):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        code = main(["setup", "--no-file-check"])
+        out = capsys.readouterr().out
+        assert code == 0, out
+        assert "minipcai train" in out
+
+    def test_setup_with_a_missing_model_trains_it(self, monkeypatch, tmp_path):
+        from minipcai import paths
+
+        monkeypatch.setattr(paths, "state_dir", lambda environ=None: tmp_path / "state")
+        code = main([
+            "setup", "--no-file-check", "--train",
+            "--models-dir", str(tmp_path / "models"),
+        ])
+        assert code == 0
+        assert (tmp_path / "models" / "model.joblib").is_file()
+
+
+class TestUntrustedRegistryIsRefused:
+    """The trusted-root policy is what broke the Windows CI: registry entries
+    whose application lives outside the approved locations are refused - with a
+    readable hint - unless the documented escape hatch is used."""
+
+    def _registry(self, tmp_path):
+        path = tmp_path / "registry.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "apps": [
+                        {
+                            "id": "tool",
+                            "aliases": ["tool"],
+                            "executable": "C:\\tools\\tool.exe",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_outside_the_trusted_locations(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", raising=False)
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "trusted application locations" in err
+        assert "MINIPCAI_ALLOW_UNTRUSTED_APPS" in err
+
+    def test_allow_untrusted_escape_hatch(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setenv("MINIPCAI_ALLOW_UNTRUSTED_APPS", "1")
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 0
+        assert "tool" in capsys.readouterr().out
+
+    def test_extra_trusted_root_escape_hatch(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setenv("MINIPCAI_EXTRA_TRUSTED_ROOTS", "C:\\tools")
+        code = main(["registry", "--registry", str(self._registry(tmp_path))])
+        assert code == 0
+        assert "tool" in capsys.readouterr().out

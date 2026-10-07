@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from minipcai.intents import ALL_LABELS
+from minipcai.paths import default_dataset_path
 
 CATEGORIES: tuple[str, ...] = ("normal", "typo", "unknown", "ambiguous")
 _REQUIRED_FIELDS = {"id", "text", "label", "category", "version"}
@@ -61,14 +62,14 @@ class DatasetError(ValueError):
     """Raised when the dataset file is malformed or inconsistent."""
 
 
-def load_dataset(path: Path | str) -> Dataset:
-    """Load and validate the dataset at ``path``.
+def load_dataset(path: Path | str | None = None) -> Dataset:
+    """Load and validate the dataset at ``path`` (default: packaged dataset).
 
     Validation enforces: required fields, known labels/categories, unique ids,
     unique texts (no conflicting duplicates), consistent version and a
     filename/row version match when the file follows the ``*.vN.jsonl`` scheme.
     """
-    path = Path(path)
+    path = default_dataset_path() if path is None else Path(path)
     if not path.is_file():
         raise DatasetError(f"dataset file not found: {path}")
 

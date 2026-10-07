@@ -13,7 +13,7 @@ the audit sink are all replaceable components behind small interfaces.
 from minipcai.config import Config, Thresholds, default_config
 from minipcai.pipeline import Assistant, AssistantResult
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "Assistant",
